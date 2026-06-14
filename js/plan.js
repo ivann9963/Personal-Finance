@@ -47,7 +47,7 @@ function renderBudgets(el) {
     const delta = lastSpent>0 ? Math.round((spent-lastSpent)/lastSpent*100) : null;
     const remaining = budAmt - spent;
     const daysLeft = dim - diy;
-    return `<div class="budget-card${over?' exceeded':''}">
+    return `<div class="budget-card${over?' exceeded':''}" style="cursor:pointer" onclick="openEditBudget('${escHtml(b.category)}')">
       <div class="budget-hdr">
         <div class="budget-name">${ci.emoji} ${escHtml(ci.name)}</div>
         <div style="display:flex;align-items:center;gap:8px">
@@ -90,7 +90,7 @@ function renderBudgets(el) {
     ${S.budgets.length?`<button class="add-acc-btn" style="margin:4px 16px 0" onclick="openAddBudgetSheet()">+ Add Budget</button>`:''}
     <div class="section-hdr" style="padding-top:20px;display:flex;align-items:center;justify-content:space-between">
       <span>Subscriptions</span>
-      ${subSchs.length?`<span style="font-size:12px;color:var(--text-tertiary)">${subSchs.length} active</span>`:''}
+      <button class="see-all-btn" style="font-size:13px;color:var(--accent);font-weight:500" onclick="openRecurringManager()">Manage</button>
     </div>
     ${subSchs.length?`
       <div class="sub-totals">
@@ -185,22 +185,28 @@ function shiftCalMonth(d) {
   _calMonth.setMonth(_calMonth.getMonth()+d);
   renderPlanContent();
 }
-function openAddBudgetSheet() {
-  const catOpts = S.categories.map(c=>`<option value="${c.id}">${c.emoji} ${escHtml(c.name)}</option>`).join('');
+function openAddBudgetSheet(editCat) {
+  const existing = editCat ? S.budgets.find(b=>b.category===editCat) : null;
+  // When editing, lock to that category; when adding, offer categories without a budget yet.
+  const cats = existing ? S.categories.filter(c=>c.id===editCat)
+                        : S.categories.filter(c=>!S.budgets.some(b=>b.category===c.id));
+  const catOpts = (cats.length?cats:S.categories).map(c=>`<option value="${c.id}"${existing&&existing.category===c.id?' selected':''}>${c.emoji} ${escHtml(c.name)}</option>`).join('');
   openSheet('add-budget',`
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Add Budget</div>
+    <div class="sheet-title">${existing?'Edit Budget':'Add Budget'}</div>
     <div class="sheet-body">
       <div class="form-field"><label class="form-label">Category</label>
-        <select id="bud-cat" class="form-input">${catOpts}</select></div>
+        <select id="bud-cat" class="form-input"${existing?' disabled':''}>${catOpts}</select></div>
       <div class="form-field"><label class="form-label">Monthly Amount</label>
-        <input id="bud-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" style="font-size:20px"></div>
+        <input id="bud-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${existing?(existing.amount/100).toFixed(2):''}" style="font-size:20px"></div>
       <div style="height:8px"></div>
-      <button class="btn-primary" onclick="saveBudget()">Save Budget</button>
+      <button class="btn-primary" onclick="saveBudget('${existing?escHtml(existing.category):''}')">${existing?'Save Changes':'Save Budget'}</button>
+      ${existing?`<div style="height:10px"></div><button class="btn-danger" onclick="deleteBudget('${escHtml(existing.category)}')">Delete Budget</button>`:''}
     </div>`);
 }
-function saveBudget() {
-  const cat = document.getElementById('bud-cat').value;
+function openEditBudget(cat) { openAddBudgetSheet(cat); }
+function saveBudget(lockedCat) {
+  const cat = lockedCat || document.getElementById('bud-cat').value;
   const amt = parseFloat(document.getElementById('bud-amt').value);
   if (!cat||isNaN(amt)||amt<=0) { showToast('Enter a valid amount','error'); return; }
   const existing = S.budgets.findIndex(b=>b.category===cat);
@@ -208,5 +214,10 @@ function saveBudget() {
   if (existing>=0) S.budgets[existing]=bud; else S.budgets.push(bud);
   saveState(); closeTopSheet(); renderPlanContent();
   showToast('Budget saved','success');
+}
+function deleteBudget(cat) {
+  S.budgets = S.budgets.filter(b=>b.category!==cat);
+  saveState(); closeTopSheet(); renderPlanContent();
+  showToast('Budget deleted','success');
 }
 

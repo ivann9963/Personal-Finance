@@ -41,6 +41,58 @@ function generateRecurring() {
   S.transactions.sort((a,b) => b.date.localeCompare(a.date));
 }
 
+// === RECURRING MANAGER ===
+function openRecurringManager() {
+  openSheet('recurring-mgr', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Recurring & Subscriptions</div>
+    <div class="sheet-body" style="padding:0" id="recurring-mgr-body"></div>`);
+  renderRecurringList();
+}
+function renderRecurringList() {
+  const body = document.getElementById('recurring-mgr-body'); if (!body) return;
+  const dc = S.settings.defaultCurrency;
+  const schs = S.recurringSchedules;
+  if (!schs.length) {
+    body.innerHTML = `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔄</div>
+      <div class="empty-state-title">No recurring transactions</div>
+      <div class="empty-state-desc">Toggle "Recurring" when adding a transaction to track subscriptions, rent, salary and more.</div></div>`;
+    return;
+  }
+  const rows = schs.map(r => {
+    const ci = getCatInfo(r.category);
+    const tod = new Date().toISOString().slice(0,10);
+    let next = r.startDate;
+    while (next <= tod) next = getNextOccurrence(next, r.frequency);
+    const sign = r.type==='income' ? '+' : '-';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);${r.active?'':'opacity:.5'}">
+      <div class="tx-cat-icon" style="background:${ci.color}22">${ci.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:15px;font-weight:600" class="truncate">${escHtml(r.merchant)}</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">${r.frequency} · ${r.active?`next ${formatDate(next,{month:'short',day:'numeric'})}`:'paused'}</div>
+      </div>
+      <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px;color:${r.type==='income'?'var(--green)':'var(--red)'}">${sign}${formatCurrency(r.amount,r.currency)}</div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button onclick="toggleRecurringActive('${r.id}')" title="${r.active?'Pause':'Resume'}" style="width:34px;height:34px;border-radius:8px;background:var(--bg-elevated);color:var(--text-secondary);display:flex;align-items:center;justify-content:center">${r.active?'⏸':'▶'}</button>
+        <button onclick="deleteRecurringSchedule('${r.id}')" title="Delete" style="width:34px;height:34px;border-radius:8px;background:var(--red-bg);color:var(--red);display:flex;align-items:center;justify-content:center">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML = rows + `<div style="padding:16px;font-size:12px;color:var(--text-tertiary);line-height:1.5">Pausing stops future auto-generated entries. Deleting also removes the schedule — already-recorded transactions are kept.</div>`;
+}
+function toggleRecurringActive(id) {
+  const r = S.recurringSchedules.find(s => s.id === id); if (!r) return;
+  r.active = !r.active;
+  if (r.active) generateRecurring();
+  saveState(); renderRecurringList(); renderCurrentTab();
+}
+function deleteRecurringSchedule(id) {
+  if (!confirm('Delete this recurring schedule? Past transactions are kept; no new ones will be generated.')) return;
+  S.recurringSchedules = S.recurringSchedules.filter(s => s.id !== id);
+  saveState(); renderRecurringList(); renderCurrentTab();
+  showToast('Recurring schedule deleted', 'success');
+}
+
 // === INSIGHTS ENGINE ===
 function getCatInfo(id) {
   return S.categories.find(c => c.id === id) || CATEGORIES.find(c => c.id === id) || {id,name:id,emoji:'❓',color:'#B2BEC3'};

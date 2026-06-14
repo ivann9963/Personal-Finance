@@ -23,7 +23,9 @@ function buildTxSheet(prefill={}, isUpdate=false) {
     <div class="cat-pill${_txForm.category===c.id?' sel':''}" data-catid="${c.id}" onclick="selectTxCat('${c.id}')">
       <div class="cat-pill-emoji">${c.emoji}</div>
       <div class="cat-pill-name">${escHtml(c.name)}</div>
-    </div>`).join('');
+    </div>`).join('')
+    + `<div class="cat-pill" style="border-style:dashed" onclick="addTxCategoryInline()">
+        <div class="cat-pill-emoji">＋</div><div class="cat-pill-name">New</div></div>`;
   const showRate = _txForm.currency !== dc;
   const storedRate = S.exchangeRates[`${_txForm.currency}_${dc}`] || S.exchangeRates[`${dc}_${_txForm.currency}`];
   const rateVal = storedRate ? (S.exchangeRates[`${_txForm.currency}_${dc}`]?storedRate:(1/storedRate).toFixed(6)) : '';
@@ -85,6 +87,13 @@ function selectTxCat(id) {
   _txForm.category = id;
   document.querySelectorAll('.cat-pill').forEach(p => {
     p.classList.toggle('sel', p.dataset.catid === id);
+  });
+}
+function addTxCategoryInline() {
+  // Opens the category editor on top of the tx sheet; on save, select it and refresh in place.
+  openCategoryEditor(null, (newId) => {
+    _txForm.category = newId;
+    buildTxSheet(collectTxFormValues(), true);
   });
 }
 function toggleRecurring() { _txForm.recurring=!_txForm.recurring; buildTxSheet(collectTxFormValues(), true); }

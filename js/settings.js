@@ -50,7 +50,12 @@ function openSettings() {
       </div>
       <div class="settings-row" onclick="openCategoriesManager()">
         <div class="settings-row-icon" style="background:#1C2128">🏷️</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Categories</div><div class="settings-row-val">Reorder & add custom</div></div>
+        <div class="settings-row-info"><div class="settings-row-lbl">Categories</div><div class="settings-row-val">Add, edit, reorder</div></div>
+        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </div>
+      <div class="settings-row" onclick="openRecurringManager()">
+        <div class="settings-row-icon" style="background:#1C2128">🔄</div>
+        <div class="settings-row-info"><div class="settings-row-lbl">Recurring & Subscriptions</div><div class="settings-row-val">Pause or delete scheduled transactions</div></div>
         <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>
       <div class="settings-grp-title">Danger Zone</div>
