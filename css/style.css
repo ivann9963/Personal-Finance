@@ -390,6 +390,11 @@ textarea.form-input{resize:none;min-height:72px}
 .csv-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-primary);vertical-align:middle}
 .csv-table select{background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text-primary);outline:none;max-width:130px}
 
+/* CSV review */
+.csv-review-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.csv-review-row:last-child{border-bottom:none}
+.csv-review-info{flex:1;min-width:0}
+
 /* Misc */
 .divider{height:1px;background:var(--border);margin:8px 16px}
 .full-divider{height:1px;background:var(--border)}

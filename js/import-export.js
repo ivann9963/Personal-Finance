@@ -65,6 +65,7 @@ function handleCSVFile(inp) {
   r.onload = e => {
     _csvData = parseCSV(e.target.result);
     _csvMapping = autoMapColumns(_csvData.headers);
+    _csvMerchantOverrides = {};
     renderCSVMapping();
   };
   r.readAsText(file);
@@ -92,7 +93,7 @@ function autoMapColumns(headers) {
     date:['date','transaction date','value date','booking date','completed date','buchungstag'],
     amount:['amount','amount (eur)','local amount','debit','credit','value','betrag'],
     merchant:['description','payee','merchant','name','narrative','counterparty','beneficiary','recipient','details','empfaenger','verwendungszweck'],
-    category:['category','transaction type','type'],
+    category:['category','spending category'],
     currency:['currency','local currency','waehrung'],
     notes:['notes','note','memo','payment reference','notes and #tags']
   };
@@ -135,43 +136,121 @@ function renderCSVMapping() {
     <div style="height:8px"></div>`;
   renderCSVPreview();
 }
+// Merchant/description → category, by keyword. First match wins; whole-word match for
+// short alphanumeric keys, substring for multi-word/symbol keys (e.g. "h&m").
+const MERCHANT_RULES = [
+  ['groceries', ['kaufland','lidl','billa','fantastico','conad','carrefour','albert heijn','spar','masoutis','cba','kome','mesar','jumbo','krasi','supermarket','market','eco market','galaxias','penny','rewe','aldi','food outlet','burlex','t market','metro','grocery']],
+  ['food', ['restaurant','trattoria','osteria','pizzeria','pizza','gelateria','gelaterie','taverna','mehana','kebab','gyros','paesano','starita','sushi','coffee','cafe','caffe','bakery','pasticceria','forneria','amorino','wolt','glovo','bistro','grill','cocktail','syndicate','sofra','kreta','dave']],
+  ['transport', ['omv','lukoil','shell','petrol','eko','bgtoll','bg toll','sofia transit','public transport','transit','ovpay','atac','egnatia','diodia','parking','bolt','uber','taxi','speedy','econt','obilet','ryanair','aelia','toll','bus']],
+  ['fitness', ['multisport','orbita fitness','senshi','playtomic','padel','tennis','tenis','gym','fitness']],
+  ['health', ['sofarmasi','sopharmacy','drogerie','lilly','hospis','neoclinic','serdikamed','bodimed','ramus','biomet','thorax','clinic','pharmacy','dkc','mdl','medical','apteka']],
+  ['subscriptions', ['anthropic','openai','youtube','apple','itunes','spotify','netflix','google','microsoft','adobe','posteo','premium plan']],
+  ['savings', ['kraken','freedom 24','freedom24','binance','coinbase']],
+  ['shopping', ['amazon','ebag','ozone','h&m','uniqlo','intersport','sport vision','asics','borosport','body shop','technopolis','decathlon','mall','zara','ticketstation','eventim','eventease','sport','store']],
+  ['utilities', ['a1','vivacom','yettel','telenor','easypay','national revenue']],
+];
+function inferCategoryFromMerchant(m) {
+  const s = (m||'').toLowerCase();
+  if (!s || s==='unknown') return null;
+  for (const [catId, kws] of MERCHANT_RULES) {
+    for (const kw of kws) {
+      if (/[^a-z0-9]/.test(kw)) { if (s.includes(kw)) return catId; }
+      else if (new RegExp('\\b'+kw+'\\b').test(s)) return catId;
+    }
+  }
+  return null;
+}
+// Classify by description for non-purchase rows (transfers, currency exchanges, savings, top-ups)
+function classifyByDescription(d) {
+  d = (d||'').toLowerCase();
+  if (!d) return null;
+  if (d.includes('exchanged to')) return {type:'transfer', category:'other'};
+  if (d.includes('savings vault') || d.includes('reserves fund')) return {type:'transfer', category:'savings'};
+  if (d.startsWith('transfer to') || d.startsWith('transfer from') || d.startsWith('to ') || d.startsWith('from ')
+    || d.includes('revolut ltd') || d.includes('revolut bank') || d.includes('revolut france') || d.includes('revolut,')
+    || d.includes('p2p') || d.includes('personal payments')) return {type:'transfer', category:'other'};
+  if (d.includes('top-up') || d.includes('topup') || d.startsWith('payment from')) return {type:'income', category:'income'};
+  return null;
+}
+let _csvMerchantOverrides = {}; // merchant -> {category?, type?} set manually in the review step
 function interpretCSVRow(row, posIsExpense) {
   const get = field => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
   const dateStr = parseDateStr(get('date'));
   const rawAmt  = parseAmountStr(get('amount'));
-  const valid = !!dateStr && !isNaN(rawAmt);
+  const valid = !!dateStr && !isNaN(rawAmt) && rawAmt !== 0;
   const cents = isNaN(rawAmt) ? null : Math.round(Math.abs(rawAmt)*100);
   const cur = get('currency') || S.settings.defaultCurrency;
   const mappedCat = mapCategoryValue(get('category'));
   // Merchant: explicit column → note → mapped category name → 'Unknown'
   const merchant = get('merchant') || get('notes') || (mappedCat ? getCatInfo(mappedCat).name : '') || 'Unknown';
-  const isExpense = posIsExpense ? rawAmt > 0 : rawAmt < 0;
-  const type = isExpense ? 'expense' : 'income';
-  // Category: CSV mapping → past txns for a *real* merchant (never via 'Unknown') → 'other'
-  const pastCat = merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null;
-  const category = mappedCat || pastCat || 'other';
-  return {valid, dateStr, cents, cur, merchant, type, category, rawAmt};
+  // Base type from amount sign
+  let type = (posIsExpense ? rawAmt > 0 : rawAmt < 0) ? 'expense' : 'income';
+  let category, autoMatched = true;
+  const special = classifyByDescription(merchant);
+  if (special) {
+    type = special.type; category = special.category;
+  } else {
+    category = mappedCat
+      || inferCategoryFromMerchant(merchant)
+      || (merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null);
+    if (!category) { category = 'other'; autoMatched = false; }
+  }
+  // Manual overrides from the review step take precedence
+  const ov = _csvMerchantOverrides[merchant];
+  if (ov) { if (ov.category) { category = ov.category; autoMatched = true; } if (ov.type) type = ov.type; }
+  return {valid, dateStr, cents, cur, merchant, type, category, rawAmt, autoMatched};
 }
 function renderCSVPreview() {
   const el = document.getElementById('csv-preview'); if (!el) return;
   const posIsExpense = document.getElementById('csv-sign')?.value === 'pos-expense';
-  const rows = _csvData.rows.slice(0,5).map(row => {
+  const typeBadge = t => t==='expense'?'<span class="text-red">Expense</span>':t==='income'?'<span class="text-green">Income</span>':'<span style="color:var(--blue)">Transfer</span>';
+  const rows = _csvData.rows.slice(0,6).map(row => {
     const r = interpretCSVRow(row, posIsExpense);
-    if (!r.valid) return `<tr><td colspan="4" style="color:var(--red)">⚠️ Could not read (check Date/Amount mapping)</td></tr>`;
+    if (!r.valid) return `<tr><td colspan="4" style="color:var(--text-tertiary)">— skipped (zero/!date)</td></tr>`;
     const ci = getCatInfo(r.category);
-    const sign = r.type==='expense'?'-':'+';
-    const merchantWarn = r.merchant==='Unknown' ? 'color:var(--amber)' : '';
+    const sign = r.type==='income'?'+':r.type==='expense'?'-':'';
     return `<tr>
-      <td style="white-space:nowrap">${escHtml(r.dateStr)}</td>
-      <td style="${merchantWarn}">${escHtml(r.merchant)}</td>
-      <td class="${r.type==='expense'?'text-red':'text-green'}" style="white-space:nowrap;font-family:'JetBrains Mono',monospace">${sign}${formatCurrency(r.cents,r.cur)}</td>
-      <td style="white-space:nowrap">${ci.emoji} ${escHtml(ci.name)}</td>
+      <td style="${r.merchant==='Unknown'?'color:var(--amber)':''}">${escHtml(r.merchant.slice(0,22))}</td>
+      <td style="white-space:nowrap;font-family:'JetBrains Mono',monospace">${sign}${formatCurrency(r.cents,r.cur)}</td>
+      <td style="white-space:nowrap;font-size:11px">${typeBadge(r.type)}</td>
+      <td style="white-space:nowrap;${r.autoMatched?'':'color:var(--amber)'}">${ci.emoji} ${escHtml(ci.name)}</td>
     </tr>`;
   }).join('');
   el.innerHTML = `<div class="csv-table-wrap"><table class="csv-table">
-    <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th><th>Category</th></tr></thead>
+    <thead><tr><th>Merchant</th><th>Amount</th><th>Type</th><th>Category</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
-    <div style="font-size:12px;color:var(--text-tertiary);margin-top:6px">Showing first 5 of ${_csvData.rows.length} rows. Adjust the mapping above until this looks right.</div>`;
+    <div style="font-size:12px;color:var(--text-tertiary);margin-top:6px">Preview of first 6 rows. Transfers & currency exchanges are auto-detected and excluded from spending.</div>
+    ${renderCSVReviewSection(posIsExpense)}`;
+}
+// Distinct merchants whose category could not be auto-detected (landed in "Other") — let the user fix them in bulk.
+function renderCSVReviewSection(posIsExpense) {
+  const groups = {};
+  _csvData.rows.forEach(row => {
+    const r = interpretCSVRow(row, posIsExpense);
+    if (!r.valid || r.type==='transfer' || r.autoMatched) return;
+    groups[r.merchant] = groups[r.merchant] || {count:0,total:0,cur:r.cur,type:r.type};
+    groups[r.merchant].count++; groups[r.merchant].total += r.cents;
+  });
+  const entries = Object.entries(groups).sort((a,b)=>b[1].total-a[1].total).slice(0,40);
+  if (!entries.length) return `<div style="font-size:13px;color:var(--green);margin-top:14px;font-weight:600">✓ All rows auto-categorized</div>`;
+  const catOpts = c => S.categories.map(x=>`<option value="${x.id}"${x.id===c?' selected':''}>${x.emoji} ${escHtml(x.name)}</option>`).join('');
+  const rows = entries.map(([m,g])=>{
+    const cur = _csvMerchantOverrides[m]?.category || 'other';
+    return `<div class="csv-review-row">
+      <div class="csv-review-info"><div class="truncate" style="font-weight:600;font-size:13px">${escHtml(m)}</div><div style="font-size:11px;color:var(--text-tertiary)">${g.count}× · ${formatCurrency(g.total,g.cur,true)}</div></div>
+      <select class="form-input" style="font-size:12px;padding:6px 8px;max-width:150px" onchange="setCSVMerchantCat('${escHtml(m).replace(/'/g,"\\'")}',this.value)">${catOpts(cur)}</select>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:16px">
+    <div class="form-label" style="color:var(--amber)">⚠️ ${entries.length} merchant${entries.length===1?'':'s'} need a category</div>
+    <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px">These couldn't be matched automatically. Set a category (applied to all of that merchant's rows), or leave as Other.</div>
+    ${rows}
+  </div>`;
+}
+function setCSVMerchantCat(merchant, catId) {
+  _csvMerchantOverrides[merchant] = {..._csvMerchantOverrides[merchant], category: catId==='other'?undefined:catId};
+  // Re-render only the preview table header rows (cheap) — full re-render keeps selects in sync
+  renderCSVPreview();
 }
 function updateCSVMap(colIdx, field) {
   // A field maps to exactly one column: clear any other column currently holding this field
