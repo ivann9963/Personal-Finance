@@ -61,7 +61,7 @@ function openAccDetail(id) {
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-bottom:20px">
-        <button class="btn-secondary" style="flex:1" onclick="openEditAccountSheet('${id}');closeTopSheet()">Edit</button>
+        <button class="btn-secondary" style="flex:1" onclick="openEditAccountSheet('${id}')">Edit</button>
         <button class="btn-danger" style="flex:1" onclick="deleteAccount('${id}');closeTopSheet()">Delete</button>
       </div>
       <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Recent Transactions</div>

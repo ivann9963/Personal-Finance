@@ -144,7 +144,7 @@ function openQuickAction(txId) {
   const html = `
     <div class="sheet-handle"></div>
     <div style="padding:12px 20px 4px;font-size:13px;color:var(--text-secondary)">${escHtml(tx.merchant)} · ${formatCurrency(tx.originalAmount, tx.originalCurrency)}</div>
-    <div class="quick-item" onclick="openEditTxSheet('${txId}');closeTopSheet()">
+    <div class="quick-item" onclick="openEditTxSheet('${txId}')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       Edit
     </div>
@@ -219,7 +219,7 @@ function openTxDetail(txId) {
       ${tx.isRecurring?detailRow('Recurring','Yes — part of a recurring schedule'):''}
       <div style="height:16px"></div>
       <div style="display:flex;gap:10px">
-        <button class="btn-secondary" style="flex:1" onclick="openEditTxSheet('${txId}');closeTopSheet()">Edit</button>
+        <button class="btn-secondary" style="flex:1" onclick="openEditTxSheet('${txId}')">Edit</button>
         <button class="btn-secondary" style="flex:1" onclick="duplicateTx('${txId}');closeTopSheet()">Duplicate</button>
       </div>
       <div style="height:10px"></div>
