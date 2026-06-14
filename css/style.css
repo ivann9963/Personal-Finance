@@ -52,7 +52,7 @@ input,select,textarea{font-family:inherit}
 
 /* Main layout */
 #main{z-index:10;flex-direction:column}
-#header{flex-shrink:0;height:var(--header-height);display:flex;align-items:center;justify-content:space-between;padding-inline:20px;background:var(--bg);border-bottom:1px solid var(--border);z-index:10;position:relative}
+#header{flex-shrink:0;height:calc(var(--header-height) + var(--safe-top));padding-top:var(--safe-top);display:flex;align-items:center;justify-content:space-between;padding-inline:20px;background:var(--bg);border-bottom:1px solid var(--border);z-index:10;position:relative;box-sizing:border-box}
 #header-title{font-size:18px;font-weight:700}
 .icon-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background 200ms,color 200ms}
 .icon-btn:active{background:var(--bg-elevated);color:var(--text-primary)}
