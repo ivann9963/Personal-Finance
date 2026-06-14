@@ -91,8 +91,8 @@ function autoMapColumns(headers) {
   const MAP = {
     date:['date','transaction date','value date','booking date','completed date','buchungstag'],
     amount:['amount','amount (eur)','local amount','debit','credit','value','betrag'],
-    merchant:['description','payee','merchant','name','reference','narrative','empfaenger','verwendungszweck'],
-    category:['category','type','transaction type'],
+    merchant:['description','payee','merchant','name','narrative','counterparty','beneficiary','recipient','details','empfaenger','verwendungszweck'],
+    category:['category','transaction type','type'],
     currency:['currency','local currency','waehrung'],
     notes:['notes','note','memo','payment reference','notes and #tags']
   };
@@ -116,9 +116,6 @@ function renderCSVMapping() {
       </select></td></tr>`;
   }).join('');
   const accOpts = S.accounts.map(a=>`<option value="${a.id}">${escHtml(a.name)}</option>`).join('');
-  const preview = _csvData.rows.slice(0,3).map(row=>
-    `<tr>${row.map(c=>`<td>${escHtml(c.slice(0,20))}</td>`).join('')}</tr>`
-  ).join('');
   body.innerHTML = `
     <div class="form-field"><label class="form-label">Column Mapping</label>
     <div class="csv-table-wrap"><table class="csv-table">
@@ -128,21 +125,56 @@ function renderCSVMapping() {
     <div class="form-field"><label class="form-label">Target Account</label>
       <select id="csv-account" class="form-input">${accOpts}</select></div>
     <div class="form-field"><label class="form-label">Amount Sign</label>
-      <select id="csv-sign" class="form-input">
+      <select id="csv-sign" class="form-input" onchange="renderCSVPreview()">
         <option value="neg-expense">Negative amounts are expenses (most banks)</option>
         <option value="pos-expense">Positive amounts are expenses</option>
       </select></div>
-    <div class="form-field"><label class="form-label">Preview (first 3 rows)</label>
-    <div class="csv-table-wrap"><table class="csv-table">
-      <thead><tr>${_csvData.headers.map(h=>`<th>${escHtml(h)}</th>`).join('')}</tr></thead>
-      <tbody>${preview}</tbody>
-    </table></div></div>
+    <div class="form-field"><label class="form-label">Preview — how it will be saved</label>
+      <div id="csv-preview"></div></div>
     <button class="btn-primary" onclick="runCSVImport()">Import ${_csvData.rows.length} rows</button>
     <div style="height:8px"></div>`;
+  renderCSVPreview();
+}
+function interpretCSVRow(row, posIsExpense) {
+  const get = field => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
+  const dateStr = parseDateStr(get('date'));
+  const rawAmt  = parseAmountStr(get('amount'));
+  const valid = !!dateStr && !isNaN(rawAmt);
+  const cents = isNaN(rawAmt) ? null : Math.round(Math.abs(rawAmt)*100);
+  const cur = get('currency') || S.settings.defaultCurrency;
+  const merchant = get('merchant') || 'Unknown';
+  const isExpense = posIsExpense ? rawAmt > 0 : rawAmt < 0;
+  const type = isExpense ? 'expense' : 'income';
+  const category = mapCategoryValue(get('category')) || S.transactions.find(t=>t.merchant===merchant)?.category || 'other';
+  return {valid, dateStr, cents, cur, merchant, type, category, rawAmt};
+}
+function renderCSVPreview() {
+  const el = document.getElementById('csv-preview'); if (!el) return;
+  const posIsExpense = document.getElementById('csv-sign')?.value === 'pos-expense';
+  const rows = _csvData.rows.slice(0,5).map(row => {
+    const r = interpretCSVRow(row, posIsExpense);
+    if (!r.valid) return `<tr><td colspan="4" style="color:var(--red)">⚠️ Could not read (check Date/Amount mapping)</td></tr>`;
+    const ci = getCatInfo(r.category);
+    const sign = r.type==='expense'?'-':'+';
+    const merchantWarn = r.merchant==='Unknown' ? 'color:var(--amber)' : '';
+    return `<tr>
+      <td style="white-space:nowrap">${escHtml(r.dateStr)}</td>
+      <td style="${merchantWarn}">${escHtml(r.merchant)}</td>
+      <td class="${r.type==='expense'?'text-red':'text-green'}" style="white-space:nowrap;font-family:'JetBrains Mono',monospace">${sign}${formatCurrency(r.cents,r.cur)}</td>
+      <td style="white-space:nowrap">${ci.emoji} ${escHtml(ci.name)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="csv-table-wrap"><table class="csv-table">
+    <thead><tr><th>Date</th><th>Merchant</th><th>Amount</th><th>Category</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div style="font-size:12px;color:var(--text-tertiary);margin-top:6px">Showing first 5 of ${_csvData.rows.length} rows. Adjust the mapping above until this looks right.</div>`;
 }
 function updateCSVMap(colIdx, field) {
+  // A field maps to exactly one column: clear any other column currently holding this field
+  if (field !== 'skip') Object.keys(_csvMapping).forEach(k => { if (k===field) delete _csvMapping[k]; });
   Object.keys(_csvMapping).forEach(k => { if (_csvMapping[k]===colIdx) delete _csvMapping[k]; });
   if (field !== 'skip') _csvMapping[field] = colIdx;
+  renderCSVPreview();
 }
 const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 function pad2(n) { return String(n).padStart(2,'0'); }
@@ -209,9 +241,13 @@ function mapCategoryValue(raw) {
   // Direct match against our category ids/names
   const direct = S.categories.find(c => c.id.toLowerCase()===v || c.name.toLowerCase()===v);
   if (direct) return direct.id;
-  // Alias keyword match
+  // Token-based alias match (avoids "CARD_PAYMENT" matching "car" → transport)
+  const tokens = v.split(/[^a-z]+/).filter(Boolean);
   for (const [catId, aliases] of Object.entries(CATEGORY_ALIASES)) {
-    if (aliases.some(a => v.includes(a) || a.includes(v))) return catId;
+    for (const a of aliases) {
+      if (a.includes(' ')) { if (v.includes(a)) return catId; }      // multi-word: substring
+      else if (tokens.includes(a)) return catId;                     // single word: whole token
+    }
   }
   return null;
 }
@@ -219,28 +255,20 @@ function runCSVImport() {
   const accId = document.getElementById('csv-account')?.value;
   if (!accId) { showToast('Select an account','error'); return; }
   const posIsExpense = document.getElementById('csv-sign')?.value === 'pos-expense';
+  const get = (row, field) => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
+  const batchId = gid();
   let imported=0, invalid=0, duplicates=0;
   _csvData.rows.forEach(row => {
-    const get = field => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
-    const dateStr = parseDateStr(get('date'));
-    const rawAmt  = parseAmountStr(get('amount'));
-    if (!dateStr || isNaN(rawAmt)) { invalid++; return; }
-    const cents = Math.round(Math.abs(rawAmt)*100);
-    const cur   = get('currency') || S.settings.defaultCurrency;
-    const merchant = get('merchant') || 'Unknown';
-    const isExpense = posIsExpense ? rawAmt > 0 : rawAmt < 0;
-    const type  = isExpense ? 'expense' : 'income';
+    const r = interpretCSVRow(row, posIsExpense);
+    if (!r.valid) { invalid++; return; }
     // Duplicate check
-    const dup = S.transactions.some(t => t.date===dateStr && t.originalAmount===cents && t.merchant===merchant);
+    const dup = S.transactions.some(t => t.date===r.dateStr && t.originalAmount===r.cents && t.merchant===r.merchant);
     if (dup) { duplicates++; return; }
-    // Category: try mapping the CSV's category value, else fall back to past transactions for this merchant
-    const mappedCat = mapCategoryValue(get('category'));
-    const pastCat = S.transactions.find(t=>t.merchant===merchant)?.category;
-    const dc = defaultConvert(cents, cur);
-    S.transactions.push({id:gid(), type, originalAmount:cents, originalCurrency:cur,
-      convertedAmount: dc.ok?dc.amount:cents, exchangeRate:dc.rate||1,
-      category: mappedCat||pastCat||'other', merchant, accountId:accId,
-      date:dateStr, note:get('notes')||''});
+    const dc = defaultConvert(r.cents, r.cur);
+    S.transactions.push({id:gid(), type:r.type, originalAmount:r.cents, originalCurrency:r.cur,
+      convertedAmount: dc.ok?dc.amount:r.cents, exchangeRate:dc.rate||1,
+      category: r.category, merchant:r.merchant, accountId:accId,
+      date:r.dateStr, note:get(row,'notes')||'', importBatch:batchId});
     imported++;
   });
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));

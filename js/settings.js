@@ -54,6 +54,11 @@ function openSettings() {
         <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
       </div>
       <div class="settings-grp-title">Danger Zone</div>
+      <div class="settings-row" onclick="clearTransactions()">
+        <div class="settings-row-icon" style="background:var(--red-bg)">🧹</div>
+        <div class="settings-row-info"><div class="settings-row-lbl" style="color:var(--red)">Delete All Transactions</div><div class="settings-row-val">Keeps accounts, budgets & categories</div></div>
+        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
+      </div>
       <div class="settings-row" onclick="clearAllData()">
         <div class="settings-row-icon" style="background:var(--red-bg)">🗑️</div>
         <div class="settings-row-info"><div class="settings-row-lbl" style="color:var(--red)">Clear All Data</div></div>
@@ -92,6 +97,14 @@ function pickImportJSON() {
   inp.type='file'; inp.accept='.json';
   inp.onchange=()=>importJSON(inp.files[0]);
   inp.click();
+}
+function clearTransactions() {
+  const n = S.transactions.length;
+  if (!n) { showToast('No transactions to delete','info'); return; }
+  if (!confirm(`Delete all ${n} transactions? Accounts, budgets and categories are kept. This cannot be undone.`)) return;
+  S.transactions = [];
+  saveState(); closeAllSheets(); _tabsInit={}; renderCurrentTab();
+  showToast(`Deleted ${n} transactions`,'success');
 }
 function clearAllData() {
   const ans = prompt('Type DELETE to confirm clearing all data:');
