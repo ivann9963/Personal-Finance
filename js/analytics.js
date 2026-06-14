@@ -36,7 +36,11 @@ function renderAnalytics() {
     <div id="analytics-content"></div>`;
   renderAnalyticsContent();
 }
-function setAnalyticsRange(r) { _analyticsRange=r; renderAnalyticsContent(); }
+function setAnalyticsRange(r) {
+  _analyticsRange=r;
+  document.querySelectorAll('#tab-analytics .range-btn').forEach(b => b.classList.toggle('active', b.textContent.trim()===r));
+  renderAnalyticsContent();
+}
 function renderAnalyticsContent() {
   const el = document.getElementById('analytics-content'); if (!el) return;
   const dc = S.settings.defaultCurrency;

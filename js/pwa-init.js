@@ -12,7 +12,18 @@ function setupPWA() {
   const tl=document.createElement('link'); tl.rel='apple-touch-icon'; tl.href=`data:image/svg+xml;base64,${iconB64}`;
   document.head.appendChild(tl);
   if ('serviceWorker' in navigator) {
-    const sw=`const C='finance-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.add('/'))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
+    // Network-first: always fetch the latest when online (so updates ship immediately), fall
+    // back to cache offline. skipWaiting + clients.claim make a new version take over at once.
+    const sw=`const C='finance-v2';
+self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil((async()=>{const ks=await caches.keys();await Promise.all(ks.map(k=>k!==C&&caches.delete(k)));await self.clients.claim();})()));
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET')return;
+  e.respondWith((async()=>{
+    try{const fresh=await fetch(e.request);const cache=await caches.open(C);cache.put(e.request,fresh.clone());return fresh;}
+    catch(err){const cached=await caches.match(e.request);return cached||Response.error();}
+  })());
+});`;
     const swBlob=new Blob([sw],{type:'application/javascript'});
     navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
   }
