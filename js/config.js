@@ -19,7 +19,8 @@ const CURRENCIES = [
   {code:'RUB',symbol:'₽',name:'Russian Ruble'}
 ];
 const CATEGORIES = [
-  {id:'food',name:'Food',emoji:'🍔',color:'#FF6B6B'},
+  {id:'food',name:'Food & Dining',emoji:'🍔',color:'#FF6B6B'},
+  {id:'groceries',name:'Groceries',emoji:'🛒',color:'#20BF6B'},
   {id:'transport',name:'Transport',emoji:'🚗',color:'#4ECDC4'},
   {id:'housing',name:'Housing',emoji:'🏠',color:'#45B7D1'},
   {id:'health',name:'Health',emoji:'💊',color:'#96CEB4'},

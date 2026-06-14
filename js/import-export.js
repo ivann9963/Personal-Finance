@@ -142,10 +142,14 @@ function interpretCSVRow(row, posIsExpense) {
   const valid = !!dateStr && !isNaN(rawAmt);
   const cents = isNaN(rawAmt) ? null : Math.round(Math.abs(rawAmt)*100);
   const cur = get('currency') || S.settings.defaultCurrency;
-  const merchant = get('merchant') || 'Unknown';
+  const mappedCat = mapCategoryValue(get('category'));
+  // Merchant: explicit column → note → mapped category name → 'Unknown'
+  const merchant = get('merchant') || get('notes') || (mappedCat ? getCatInfo(mappedCat).name : '') || 'Unknown';
   const isExpense = posIsExpense ? rawAmt > 0 : rawAmt < 0;
   const type = isExpense ? 'expense' : 'income';
-  const category = mapCategoryValue(get('category')) || S.transactions.find(t=>t.merchant===merchant)?.category || 'other';
+  // Category: CSV mapping → past txns for a *real* merchant (never via 'Unknown') → 'other'
+  const pastCat = merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null;
+  const category = mappedCat || pastCat || 'other';
   return {valid, dateStr, cents, cur, merchant, type, category, rawAmt};
 }
 function renderCSVPreview() {
@@ -217,8 +221,9 @@ function parseAmountStr(raw) {
 }
 // Map common bank/export category labels to our internal category ids
 const CATEGORY_ALIASES = {
-  food: ['food','groceries','grocery','restaurant','dining','supermarket','food & drink','food and drink','takeaway','coffee'],
-  transport: ['transport','transportation','transit','fuel','gas','petrol','parking','taxi','uber','public transport','car'],
+  groceries: ['groceries','grocery','supermarket','supermarkets','market','convenience store','food shop'],
+  food: ['food','restaurant','restaurants','dining','takeaway','takeout','fast food','coffee','cafe','bakery','food & drink','food and drink','eating out'],
+  transport: ['transport','transportation','transit','fuel','gas','petrol','parking','taxi','uber','public transport','car','rideshare'],
   housing: ['housing','rent','mortgage','home','household'],
   health: ['health','healthcare','pharmacy','wellness'],
   entertainment: ['entertainment','leisure','movies','cinema','games','gaming','recreation','hobbies'],
@@ -242,11 +247,12 @@ function mapCategoryValue(raw) {
   const direct = S.categories.find(c => c.id.toLowerCase()===v || c.name.toLowerCase()===v);
   if (direct) return direct.id;
   // Token-based alias match (avoids "CARD_PAYMENT" matching "car" → transport)
+  const norm = w => w.replace(/s$/,'');                              // light singularization
   const tokens = v.split(/[^a-z]+/).filter(Boolean);
   for (const [catId, aliases] of Object.entries(CATEGORY_ALIASES)) {
     for (const a of aliases) {
       if (a.includes(' ')) { if (v.includes(a)) return catId; }      // multi-word: substring
-      else if (tokens.includes(a)) return catId;                     // single word: whole token
+      else if (tokens.some(t => t===a || norm(t)===norm(a))) return catId; // single word: whole token (plural-tolerant)
     }
   }
   return null;
