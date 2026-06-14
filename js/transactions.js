@@ -25,7 +25,9 @@ function renderTxList() {
   const body = document.getElementById('tx-list-body'); if (!body) return;
   let txs = [...S.transactions];
   // Filter
-  if (_txFilter==='expense'||_txFilter==='income'||_txFilter==='transfer') txs=txs.filter(t=>t.type===_txFilter);
+  const catFilterId = _txFilter.startsWith('cat:') ? _txFilter.slice(4) : null;
+  if (catFilterId) txs=txs.filter(t=>t.category===catFilterId);
+  else if (_txFilter==='expense'||_txFilter==='income'||_txFilter==='transfer') txs=txs.filter(t=>t.type===_txFilter);
   else if (_txFilter!=='all') txs=txs.filter(t=>t.accountId===_txFilter);
   // Search
   if (_txSearch) {
@@ -41,14 +43,18 @@ function renderTxList() {
   txs.forEach(t => { (groups[t.date]=groups[t.date]||[]).push(t); });
   const days = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
   const dc = S.settings.defaultCurrency;
+  const filterBanner = catFilterId ? (() => {
+    const ci = getCatInfo(catFilterId);
+    return `<div class="filter-banner">${ci.emoji} ${escHtml(ci.name)} · ${total} ${total===1?'transaction':'transactions'}<button onclick="setTxFilter('all')">✕ Clear</button></div>`;
+  })() : '';
   if (!days.length) {
     const isBlank = !_txSearch && _txFilter === 'all' && S.transactions.length === 0;
-    body.innerHTML = isBlank
+    body.innerHTML = filterBanner + (isBlank
       ? `<div class="empty-state"><div style="font-size:48px;margin-bottom:12px">💸</div><div class="empty-state-title">No transactions yet</div><div class="empty-state-desc">Tap the + button to record your first transaction</div><button class="empty-state-btn" onclick="openAddTxSheet()">Add Transaction</button></div>`
-      : `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔍</div><div class="empty-state-title">No results</div><div class="empty-state-desc">Try a different search or filter</div></div>`;
+      : `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔍</div><div class="empty-state-title">No results</div><div class="empty-state-desc">Try a different search or filter</div></div>`);
     return;
   }
-  let html = '';
+  let html = filterBanner;
   days.forEach(day => {
     const dayTx = groups[day];
     const net = dayTx.reduce((s,t)=>t.type==='income'?s+t.convertedAmount:t.type==='expense'?s-t.convertedAmount:s, 0);

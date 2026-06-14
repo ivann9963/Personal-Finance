@@ -106,9 +106,9 @@ function renderAnalyticsContent() {
   const catRows = catEntries.slice(0,8).map(([c,v])=>{
     const ci=getCatInfo(c);
     const pct=catTotal>0?Math.round(v/catTotal*100):0;
-    return `<div class="legend-item" style="width:100%;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+    return `<div class="legend-item" style="width:100%;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)" onclick="filterByCategory('${escHtml(c)}')">
       <div style="display:flex;align-items:center;gap:8px"><div class="legend-dot" style="background:${ci.color}"></div><span>${ci.emoji} ${escHtml(ci.name)}</span></div>
-      <div style="display:flex;align-items:center;gap:12px"><span style="color:var(--text-tertiary)">${pct}%</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-variant-numeric:tabular-nums">${formatCurrency(v,dc,true)}</span></div>
+      <div style="display:flex;align-items:center;gap:12px"><span style="color:var(--text-tertiary)">${pct}%</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-variant-numeric:tabular-nums">${formatCurrency(v,dc,true)}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>`;
   }).join('');
 
@@ -145,7 +145,7 @@ function renderAnalyticsContent() {
     <div class="analytics-sec">
       <div class="analytics-sec-title">🍩 Category Breakdown</div>
       <div class="chart-box">
-        ${catEntries.length?`<div class="chart-inner"><canvas id="cat-donut"></canvas></div><div>${catRows}</div>`:
+        ${catEntries.length?`<div class="chart-inner"><canvas id="cat-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Total Spent</div><div class="donut-center-amt">${formatCurrency(catTotal,dc,true)}</div></div></div><div>${catRows}</div>`:
           `<div style="color:var(--text-secondary);font-size:14px;text-align:center;padding:16px">No data</div>`}
       </div>
     </div>
@@ -179,5 +179,11 @@ function hmColor(intensity) {
 function filterByMerchant(name) {
   _txSearch=name; _txFilter='all'; _txPage=1;
   switchTab('transactions');
+  _tabsInit['transactions']=true; renderTransactions();
+}
+function filterByCategory(catId) {
+  _txSearch=''; _txFilter='cat:'+catId; _txPage=1;
+  switchTab('transactions');
+  _tabsInit['transactions']=true; renderTransactions();
 }
 
