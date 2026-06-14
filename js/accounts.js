@@ -15,11 +15,16 @@ function renderAccounts() {
     const c = defaultConvert(a.balance, a.currency);
     const isLiability = a.type==='credit';
     const showConv = a.currency !== dc;
+    let sub = escHtml(a.institution||ACCOUNT_TYPES.find(t=>t.id===a.type)?.name||a.type);
+    if (a.isVault) {
+      const ru = S.transactions.filter(t=>t.savingsVault===a.vaultName && t.isRoundup).length;
+      sub = `🐷 Auto-saved${ru?` · ${ru} round-ups`:''}`;
+    }
     return `<div class="account-card" onclick="openAccDetail('${a.id}')">
-      <div class="acc-icon" style="background:var(--bg-elevated)">${ati.emoji}</div>
+      <div class="acc-icon" style="background:var(--bg-elevated)">${a.isVault?'🐷':ati.emoji}</div>
       <div class="acc-info">
         <div class="acc-name">${escHtml(a.name)}</div>
-        <div class="acc-sub">${escHtml(a.institution||ACCOUNT_TYPES.find(t=>t.id===a.type)?.name||a.type)}</div>
+        <div class="acc-sub">${sub}</div>
       </div>
       <div class="acc-bal">
         <div class="acc-bal-main${isLiability?' liability':''}">${formatCurrency(Math.abs(a.balance),a.currency)}</div>

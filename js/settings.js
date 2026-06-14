@@ -103,6 +103,8 @@ function clearTransactions() {
   if (!n) { showToast('No transactions to delete','info'); return; }
   if (!confirm(`Delete all ${n} transactions? Accounts, budgets and categories are kept. This cannot be undone.`)) return;
   S.transactions = [];
+  // Auto-created savings vaults are derived from transactions — drop them so no stale balance lingers.
+  S.accounts = S.accounts.filter(a => !a.isVault);
   saveState(); closeAllSheets(); _tabsInit={}; renderCurrentTab();
   showToast(`Deleted ${n} transactions`,'success');
 }

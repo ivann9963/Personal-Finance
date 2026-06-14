@@ -27,7 +27,7 @@ function loadApp() {
   src += `
     ;globalThis.__app = {
       parseDateStr, parseAmountStr, mapCategoryValue, inferCategoryFromMerchant,
-      classifyByDescription, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
+      classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
       getState: () => S,
       setState: (v) => { S = v; },
       setMapping: (v) => { _csvMapping = v; },

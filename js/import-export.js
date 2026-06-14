@@ -160,12 +160,26 @@ function inferCategoryFromMerchant(m) {
   }
   return null;
 }
-// Classify by description for non-purchase rows (transfers, currency exchanges, savings, top-ups)
+// Detect money moving to/from a savings vault or fund. Returns {vault, flow:'in'|'out'} or null.
+const SAVINGS_VAULTS = [
+  [/reserves? fund/, 'Reserves Fund'],
+  [/savings? vault/, 'Savings Vault'],
+  [/flexible (account|cash|funds?)/, 'Flexible Funds'],
+  [/\bvault\b/, 'Savings Vault'],
+];
+function classifySavingsFlow(d) {
+  d = (d||'').toLowerCase();
+  if (!d) return null;
+  const hit = SAVINGS_VAULTS.find(([re]) => re.test(d));
+  if (!hit) return null;
+  const flow = d.startsWith('from ') ? 'out' : 'in'; // "To X"/"X topup" = deposit; "From X" = withdrawal
+  return { vault: hit[1], flow };
+}
+// Classify by description for non-purchase rows (peer transfers, currency exchanges, top-ups)
 function classifyByDescription(d) {
   d = (d||'').toLowerCase();
   if (!d) return null;
   if (d.includes('exchanged to')) return {type:'transfer', category:'other'};
-  if (d.includes('savings vault') || d.includes('reserves fund')) return {type:'transfer', category:'savings'};
   if (d.startsWith('transfer to') || d.startsWith('transfer from') || d.startsWith('to ') || d.startsWith('from ')
     || d.includes('revolut ltd') || d.includes('revolut bank') || d.includes('revolut france') || d.includes('revolut,')
     || d.includes('p2p') || d.includes('personal payments')) return {type:'transfer', category:'other'};
@@ -186,20 +200,29 @@ function interpretCSVRow(row, posIsExpense) {
   // Base type from amount sign
   let type = (posIsExpense ? rawAmt > 0 : rawAmt < 0) ? 'expense' : 'income';
   let category, autoMatched = true;
-  const special = classifyByDescription(merchant);
-  if (special) {
-    type = special.type; category = special.category;
+  // Savings vaults / funds (Reserves Fund, Savings Vault, …) are money moved between accounts.
+  const savings = classifySavingsFlow(merchant);
+  if (savings) {
+    type = 'transfer'; category = 'savings';
   } else {
-    category = mappedCat
-      || (S.merchantCategories && S.merchantCategories[merchant])   // learned from your history
-      || inferCategoryFromMerchant(merchant)                        // seeded keyword rules
-      || (merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null);
-    if (!category) { category = 'other'; autoMatched = false; }
+    const special = classifyByDescription(merchant);
+    if (special) {
+      type = special.type; category = special.category;
+    } else {
+      category = mappedCat
+        || (S.merchantCategories && S.merchantCategories[merchant])   // learned from your history
+        || inferCategoryFromMerchant(merchant)                        // seeded keyword rules
+        || (merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null);
+      if (!category) { category = 'other'; autoMatched = false; }
+    }
   }
   // Manual overrides from the review step take precedence
   const ov = _csvMerchantOverrides[merchant];
   if (ov) { if (ov.category) { category = ov.category; autoMatched = true; } if (ov.type) type = ov.type; }
-  return {valid, dateStr, cents, cur, merchant, type, category, rawAmt, autoMatched};
+  // Round-ups: small automatic deposits into a vault (spare-change fills to the nearest unit)
+  const isRoundup = !!(savings && savings.flow === 'in' && cents != null && cents < 100);
+  return {valid, dateStr, cents, cur, merchant, type, category, rawAmt, autoMatched,
+          savingsVault: savings ? savings.vault : null, savingsFlow: savings ? savings.flow : null, isRoundup};
 }
 function renderCSVPreview() {
   const el = document.getElementById('csv-preview'); if (!el) return;
@@ -337,32 +360,59 @@ function mapCategoryValue(raw) {
   }
   return null;
 }
+// Find (or create) the auto-managed account that backs a Revolut-style savings vault/fund.
+function getOrCreateVaultAccount(vaultName, currency) {
+  let acc = S.accounts.find(a => a.isVault && a.vaultName === vaultName);
+  if (!acc) {
+    acc = {id:gid(), name:vaultName, type:'savings', balance:0, currency:currency||S.settings.defaultCurrency,
+           institution:'Revolut', convertedBalance:0, isVault:true, vaultName};
+    S.accounts.push(acc);
+  }
+  return acc;
+}
+// Vault balance = deposits (in) − withdrawals (out), derived from its tagged transactions.
+function recomputeVaultBalances() {
+  S.accounts.filter(a => a.isVault).forEach(acc => {
+    const bal = S.transactions
+      .filter(t => t.savingsVault === acc.vaultName)
+      .reduce((s,t) => s + (t.savingsFlow === 'out' ? -t.originalAmount : t.originalAmount), 0);
+    acc.balance = bal;
+    const c = defaultConvert(bal, acc.currency);
+    acc.convertedBalance = c.ok ? c.amount : bal;
+  });
+}
 function runCSVImport() {
   const accId = document.getElementById('csv-account')?.value;
   if (!accId) { showToast('Select an account','error'); return; }
   const posIsExpense = document.getElementById('csv-sign')?.value === 'pos-expense';
   const get = (row, field) => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
   const batchId = gid();
-  let imported=0, invalid=0, duplicates=0;
+  let imported=0, invalid=0, duplicates=0, savedToVaults=0;
   _csvData.rows.forEach(row => {
     const r = interpretCSVRow(row, posIsExpense);
     if (!r.valid) { invalid++; return; }
     // Duplicate check
     const dup = S.transactions.some(t => t.date===r.dateStr && t.originalAmount===r.cents && t.merchant===r.merchant);
     if (dup) { duplicates++; return; }
+    // Savings-vault flows live in their own auto-created account; everything else in the target.
+    const targetId = r.savingsVault ? getOrCreateVaultAccount(r.savingsVault, r.cur).id : accId;
     const dc = defaultConvert(r.cents, r.cur);
     S.transactions.push({id:gid(), type:r.type, originalAmount:r.cents, originalCurrency:r.cur,
       convertedAmount: dc.ok?dc.amount:r.cents, exchangeRate:dc.rate||1,
-      category: r.category, merchant:r.merchant, accountId:accId,
-      date:r.dateStr, note:get(row,'notes')||'', importBatch:batchId});
+      category: r.category, merchant:r.merchant, accountId:targetId,
+      date:r.dateStr, note:get(row,'notes')||'', importBatch:batchId,
+      savingsVault:r.savingsVault||undefined, savingsFlow:r.savingsFlow||undefined, isRoundup:r.isRoundup||undefined});
+    if (r.savingsVault) savedToVaults++;
     if (r.type !== 'transfer') learnMerchantCategory(r.merchant, r.category); // remember for next time
     imported++;
   });
+  recomputeVaultBalances();
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));
   saveState(); closeTopSheet(); renderCurrentTab();
   const parts = [`Imported ${imported}`];
+  if (savedToVaults) parts.push(`${savedToVaults} to savings`);
   if (duplicates) parts.push(`${duplicates} duplicates skipped`);
-  if (invalid) parts.push(`${invalid} rows could not be read`);
+  if (invalid) parts.push(`${invalid} skipped`);
   showToast(parts.join(', '), imported>0?'success':'error');
 }
 

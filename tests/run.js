@@ -85,8 +85,6 @@ suite('inferCategoryFromMerchant — seeded keyword rules', () => {
 suite('classifyByDescription — transfers / exchanges / income', () => {
   check('Exchanged to USD',     app.classifyByDescription('Exchanged to USD'),                {type:'transfer', category:'other'});
   check('Transfer to person',   app.classifyByDescription('Transfer to GEORGI KOVACHEV'),     {type:'transfer', category:'other'});
-  check('Savings Vault topup',  app.classifyByDescription('Savings Vault topup'),             {type:'transfer', category:'savings'});
-  check('To Reserves fund',     app.classifyByDescription('To Reserves fund'),                {type:'transfer', category:'savings'});
   check('Top-up by card',       app.classifyByDescription('Top-up by *8405'),                 {type:'income', category:'income'});
   check('normal merchant→null', app.classifyByDescription('Kaufland'),                        null);
 });
@@ -141,6 +139,35 @@ suite('interpretCSVRow — manual override wins over everything', () => {
 
   const r = app.interpretCSVRow(['2026-06-13','Aygold Eood','-307.00','EUR'], false);
   check('override beats learned', r.category, 'food');
+});
+
+suite('classifySavingsFlow — vault detection', () => {
+  check('To Reserves fund → in',   app.classifySavingsFlow('To Reserves fund'),    {vault:'Reserves Fund', flow:'in'});
+  check('From Reserves fund → out',app.classifySavingsFlow('From Reserves fund'),  {vault:'Reserves Fund', flow:'out'});
+  check('Savings Vault topup → in',app.classifySavingsFlow('Savings Vault topup'), {vault:'Savings Vault', flow:'in'});
+  check('From Flexible account',   app.classifySavingsFlow('From Flexible account'),{vault:'Flexible Funds', flow:'out'});
+  check('normal merchant → null',  app.classifySavingsFlow('Kaufland'),            null);
+  check('peer transfer → null',    app.classifySavingsFlow('Transfer to GEORGI'),  null);
+});
+
+suite('interpretCSVRow — savings vaults & round-ups', () => {
+  app.setMapping({ date:0, merchant:1, amount:2, currency:3 });
+  app.setOverrides({});
+  freshState();
+
+  let r = app.interpretCSVRow(['2025-06-25','To Reserves fund','-20.00','EUR'], false);
+  check('savings → transfer type', r.type,         'transfer');
+  check('savings category',        r.category,     'savings');
+  check('vault name',              r.savingsVault, 'Reserves Fund');
+  check('flow in',                 r.savingsFlow,  'in');
+  check('€20 is not a round-up',   r.isRoundup,    false);
+
+  r = app.interpretCSVRow(['2025-07-29','To Reserves fund','-0.20','EUR'], false);
+  check('€0.20 is a round-up',     r.isRoundup,    true);
+
+  r = app.interpretCSVRow(['2025-09-15','From Reserves fund','382.06','EUR'], false);
+  check('withdrawal flow out',     r.savingsFlow,  'out');
+  check('withdrawal still transfer',r.type,        'transfer');
 });
 
 suite('learnMerchantCategory — guards', () => {
