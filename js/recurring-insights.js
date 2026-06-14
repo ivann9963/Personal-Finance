@@ -31,7 +31,8 @@ function generateRecurring() {
           exchangeRate: dc.rate || 1,
           category: sch.category, merchant: sch.merchant,
           accountId: sch.accountId, date: cur,
-          note: sch.note || '', recurringId: sch.id, isRecurring: true
+          note: sch.note || '', recurringId: sch.id, isRecurring: true,
+          savingsVault: sch.savingsVault || undefined, savingsFlow: sch.savingsVault ? 'in' : undefined
         });
         existingKeys.add(key);
       }
@@ -39,6 +40,7 @@ function generateRecurring() {
     }
   });
   S.transactions.sort((a,b) => b.date.localeCompare(a.date));
+  if (typeof recomputeVaultBalances === 'function') recomputeVaultBalances(); // keep vaults in sync
 }
 
 // === RECURRING MANAGER ===
@@ -56,7 +58,8 @@ function renderRecurringList() {
   if (!schs.length) {
     body.innerHTML = `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔄</div>
       <div class="empty-state-title">No recurring transactions</div>
-      <div class="empty-state-desc">Toggle "Recurring" when adding a transaction to track subscriptions, rent, salary and more.</div></div>`;
+      <div class="empty-state-desc">Toggle "Recurring" when adding a transaction to track subscriptions, rent, salary and more — or set up automatic savings below.</div></div>
+      <div style="padding:0 16px 16px"><button class="btn-primary" onclick="openSavingsContribution()">+ Automatic savings contribution</button></div>`;
     return;
   }
   const rows = schs.map(r => {
@@ -78,7 +81,55 @@ function renderRecurringList() {
       </div>
     </div>`;
   }).join('');
-  body.innerHTML = rows + `<div style="padding:16px;font-size:12px;color:var(--text-tertiary);line-height:1.5">Pausing stops future auto-generated entries. Deleting also removes the schedule — already-recorded transactions are kept.</div>`;
+  body.innerHTML = rows + `
+    <div style="padding:16px"><button class="btn-secondary" onclick="openSavingsContribution()">+ Automatic savings contribution</button></div>
+    <div style="padding:0 16px 16px;font-size:12px;color:var(--text-tertiary);line-height:1.5">Pausing stops future auto-generated entries. Deleting also removes the schedule — already-recorded transactions are kept.</div>`;
+}
+// Set up an automatic, recurring transfer into a savings vault (e.g. "€50 to Emergency Fund every month").
+function openSavingsContribution() {
+  const vaults = S.accounts.filter(a => a.isVault || a.type === 'savings');
+  const vaultOpts = vaults.map(v => `<option value="${escHtml(v.vaultName||v.name)}">${escHtml(v.name)}</option>`).join('')
+    + `<option value="__new__">+ New savings fund…</option>`;
+  openSheet2('savings-contrib', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Automatic Savings</div>
+    <div class="sheet-body">
+      <div class="form-field"><label class="form-label">Into fund</label>
+        <select id="sc-vault" class="form-input" onchange="document.getElementById('sc-newvault-wrap').style.display=this.value==='__new__'?'block':'none'">${vaultOpts}</select></div>
+      <div id="sc-newvault-wrap" class="form-field" style="display:${vaults.length?'none':'block'}"><label class="form-label">New fund name</label>
+        <input id="sc-newvault" class="form-input" type="text" placeholder="e.g. Emergency Fund"></div>
+      <div class="form-field"><label class="form-label">Amount</label>
+        <input id="sc-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" style="font-size:20px"></div>
+      <div class="form-field"><label class="form-label">Frequency</label>
+        <select id="sc-freq" class="form-input">
+          <option value="weekly">Weekly</option><option value="biweekly">Biweekly</option>
+          <option value="monthly" selected>Monthly</option><option value="yearly">Yearly</option>
+        </select></div>
+      <div style="height:8px"></div>
+      <button class="btn-primary" onclick="saveSavingsContribution()">Start saving</button>
+    </div>`);
+}
+function saveSavingsContribution() {
+  let vault = document.getElementById('sc-vault')?.value;
+  if (vault === '__new__') {
+    vault = (document.getElementById('sc-newvault')?.value || '').trim();
+    if (!vault) { showToast('Name the fund', 'error'); return; }
+  }
+  const amt = parseFloat(document.getElementById('sc-amt')?.value);
+  const freq = document.getElementById('sc-freq')?.value || 'monthly';
+  if (!vault || isNaN(amt) || amt <= 0) { showToast('Enter a valid amount', 'error'); return; }
+  const dc = S.settings.defaultCurrency;
+  const acc = getOrCreateVaultAccount(vault, dc);
+  const cents = Math.round(amt * 100);
+  S.recurringSchedules.push({
+    id: gid(), type: 'transfer', amount: cents, currency: dc, convertedAmount: cents, exchangeRate: 1,
+    category: 'savings', merchant: `Auto-save → ${vault}`, accountId: acc.id,
+    frequency: freq, startDate: new Date().toISOString().slice(0,10), active: true,
+    savingsVault: vault, note: 'Automatic savings'
+  });
+  generateRecurring();
+  saveState(); closeTopSheet2(); renderRecurringList(); renderCurrentTab();
+  showToast(`Auto-saving ${formatCurrency(cents, dc)} ${freq} into ${vault}`, 'success');
 }
 function toggleRecurringActive(id) {
   const r = S.recurringSchedules.find(s => s.id === id); if (!r) return;

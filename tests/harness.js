@@ -28,6 +28,7 @@ function loadApp() {
     ;globalThis.__app = {
       parseDateStr, parseAmountStr, mapCategoryValue, inferCategoryFromMerchant,
       classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
+      vaultNetFlows, recomputeVaultBalances,
       getState: () => S,
       setState: (v) => { S = v; },
       setMapping: (v) => { _csvMapping = v; },

@@ -170,6 +170,32 @@ suite('interpretCSVRow — savings vaults & round-ups', () => {
   check('withdrawal still transfer',r.type,        'transfer');
 });
 
+suite('vault balances — flows + opening reconciliation', () => {
+  freshState({
+    accounts: [{ id:'v1', name:'Reserves Fund', type:'savings', isVault:true, vaultName:'Reserves Fund', currency:'EUR', balance:0, openingBalance:0 }],
+    transactions: [
+      { savingsVault:'Reserves Fund', savingsFlow:'in',  originalAmount:2000 },
+      { savingsVault:'Reserves Fund', savingsFlow:'in',  originalAmount:160  },
+      { savingsVault:'Reserves Fund', savingsFlow:'out', originalAmount:1000 },
+    ],
+  });
+  check('net flows = in − out', app.vaultNetFlows('Reserves Fund'), 1160);
+
+  app.recomputeVaultBalances();
+  check('balance = opening(0) + flows', app.getState().accounts[0].balance, 1160);
+
+  // reconcile to a real balance of €30 (3000 cents): opening should offset so balance holds and survives more flows
+  const acc = app.getState().accounts[0];
+  acc.openingBalance = 3000 - app.vaultNetFlows('Reserves Fund'); // = 1840
+  app.recomputeVaultBalances();
+  check('reconciled to 3000', acc.balance, 3000);
+
+  // a new deposit of 500 keeps reconciliation: 3000 + 500
+  app.getState().transactions.push({ savingsVault:'Reserves Fund', savingsFlow:'in', originalAmount:500 });
+  app.recomputeVaultBalances();
+  check('stays reconciled after new flow', acc.balance, 3500);
+});
+
 suite('learnMerchantCategory — guards', () => {
   freshState();
   app.learnMerchantCategory('Local Bakery', 'food');

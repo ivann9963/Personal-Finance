@@ -365,17 +365,21 @@ function getOrCreateVaultAccount(vaultName, currency) {
   let acc = S.accounts.find(a => a.isVault && a.vaultName === vaultName);
   if (!acc) {
     acc = {id:gid(), name:vaultName, type:'savings', balance:0, currency:currency||S.settings.defaultCurrency,
-           institution:'Revolut', convertedBalance:0, isVault:true, vaultName};
+           institution:'Revolut', convertedBalance:0, isVault:true, vaultName, openingBalance:0};
     S.accounts.push(acc);
   }
   return acc;
 }
-// Vault balance = deposits (in) − withdrawals (out), derived from its tagged transactions.
+// Net of deposits (in) − withdrawals (out) for a vault, from its tagged transactions.
+function vaultNetFlows(vaultName) {
+  return S.transactions
+    .filter(t => t.savingsVault === vaultName)
+    .reduce((s,t) => s + (t.savingsFlow === 'out' ? -t.originalAmount : t.originalAmount), 0);
+}
+// Vault balance = opening balance (manual reconciliation point) + net of its tagged flows.
 function recomputeVaultBalances() {
   S.accounts.filter(a => a.isVault).forEach(acc => {
-    const bal = S.transactions
-      .filter(t => t.savingsVault === acc.vaultName)
-      .reduce((s,t) => s + (t.savingsFlow === 'out' ? -t.originalAmount : t.originalAmount), 0);
+    const bal = (acc.openingBalance || 0) + vaultNetFlows(acc.vaultName);
     acc.balance = bal;
     const c = defaultConvert(bal, acc.currency);
     acc.convertedBalance = c.ok ? c.amount : bal;

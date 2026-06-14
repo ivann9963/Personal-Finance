@@ -85,11 +85,12 @@ function openAddAccountSheet(prefill={}) {
       <div class="form-field"><label class="form-label">Type</label>
         <select id="acc-type" class="form-input">${typeOpts}</select></div>
       <div class="form-row">
-        <div class="form-field"><label class="form-label">Balance</label>
+        <div class="form-field"><label class="form-label">${prefill.isVault?'Actual Balance':'Balance'}</label>
           <input id="acc-balance" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${prefill.balance!=null?(prefill.balance/100).toFixed(2):''}"></div>
         <div class="form-field"><label class="form-label">Currency</label>
           <select id="acc-currency" class="form-input">${curOpts}</select></div>
       </div>
+      ${prefill.isVault?`<div style="font-size:12px;color:var(--text-tertiary);margin:-6px 0 12px;line-height:1.4">💡 Set the real current balance from your bank. Future imported deposits/withdrawals adjust it automatically from here.</div>`:''}
       <div class="form-field"><label class="form-label">Institution (optional)</label>
         <input id="acc-institution" class="form-input" type="text" placeholder="e.g. Revolut" value="${escHtml(prefill.institution||'')}"></div>
       <div style="height:8px"></div>
@@ -111,7 +112,13 @@ function saveAccount(editId) {
   const c = defaultConvert(balance, currency);
   if (editId) {
     const idx = S.accounts.findIndex(a=>a.id===editId);
-    if (idx>=0) S.accounts[idx]={...S.accounts[idx], name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance};
+    if (idx>=0) {
+      const prev = S.accounts[idx];
+      // For auto-managed vaults the typed balance is the REAL current balance: store it as an
+      // opening offset (= balance − imported flows) so future imports stay reconciled.
+      const openingBalance = prev.isVault ? (balance - vaultNetFlows(prev.vaultName)) : prev.openingBalance;
+      S.accounts[idx]={...prev, name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, openingBalance};
+    }
   } else {
     S.accounts.push({id:gid(), name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance});
   }
