@@ -127,6 +127,11 @@ function renderCSVMapping() {
     </table></div></div>
     <div class="form-field"><label class="form-label">Target Account</label>
       <select id="csv-account" class="form-input">${accOpts}</select></div>
+    <div class="form-field"><label class="form-label">Amount Sign</label>
+      <select id="csv-sign" class="form-input">
+        <option value="neg-expense">Negative amounts are expenses (most banks)</option>
+        <option value="pos-expense">Positive amounts are expenses</option>
+      </select></div>
     <div class="form-field"><label class="form-label">Preview (first 3 rows)</label>
     <div class="csv-table-wrap"><table class="csv-table">
       <thead><tr>${_csvData.headers.map(h=>`<th>${escHtml(h)}</th>`).join('')}</tr></thead>
@@ -178,9 +183,42 @@ function parseAmountStr(raw) {
   else s = s.replace(/,/g,''); // comma = thousands separator
   return parseFloat(s);
 }
+// Map common bank/export category labels to our internal category ids
+const CATEGORY_ALIASES = {
+  food: ['food','groceries','grocery','restaurant','dining','supermarket','food & drink','food and drink','takeaway','coffee'],
+  transport: ['transport','transportation','transit','fuel','gas','petrol','parking','taxi','uber','public transport','car'],
+  housing: ['housing','rent','mortgage','home','household'],
+  health: ['health','healthcare','pharmacy','wellness'],
+  entertainment: ['entertainment','leisure','movies','cinema','games','gaming','recreation','hobbies'],
+  shopping: ['shopping','retail','clothes','clothing','general','electronics'],
+  income: ['income','salary','wages','paycheck','payroll','deposit','earnings'],
+  savings: ['savings','investment','investments'],
+  travel: ['travel','vacation','holiday','hotel','flights','airbnb'],
+  subscriptions: ['subscription','subscriptions','streaming','software','services'],
+  education: ['education','tuition','books','courses','school'],
+  pets: ['pets','pet'],
+  fitness: ['fitness','gym','sports'],
+  gifts: ['gifts','gift','donation','donations','charity'],
+  medical: ['medical'],
+  bars: ['bars','nightlife','bar','pub','alcohol'],
+  utilities: ['utilities','electricity','water','internet','phone','mobile','telecom']
+};
+function mapCategoryValue(raw) {
+  const v = (raw||'').trim().toLowerCase();
+  if (!v) return null;
+  // Direct match against our category ids/names
+  const direct = S.categories.find(c => c.id.toLowerCase()===v || c.name.toLowerCase()===v);
+  if (direct) return direct.id;
+  // Alias keyword match
+  for (const [catId, aliases] of Object.entries(CATEGORY_ALIASES)) {
+    if (aliases.some(a => v.includes(a) || a.includes(v))) return catId;
+  }
+  return null;
+}
 function runCSVImport() {
   const accId = document.getElementById('csv-account')?.value;
   if (!accId) { showToast('Select an account','error'); return; }
+  const posIsExpense = document.getElementById('csv-sign')?.value === 'pos-expense';
   let imported=0, invalid=0, duplicates=0;
   _csvData.rows.forEach(row => {
     const get = field => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
@@ -190,16 +228,18 @@ function runCSVImport() {
     const cents = Math.round(Math.abs(rawAmt)*100);
     const cur   = get('currency') || S.settings.defaultCurrency;
     const merchant = get('merchant') || 'Unknown';
-    const type  = rawAmt < 0 ? 'expense' : 'income';
+    const isExpense = posIsExpense ? rawAmt > 0 : rawAmt < 0;
+    const type  = isExpense ? 'expense' : 'income';
     // Duplicate check
     const dup = S.transactions.some(t => t.date===dateStr && t.originalAmount===cents && t.merchant===merchant);
     if (dup) { duplicates++; return; }
-    // Auto-category from past transactions
-    const pastCat = S.transactions.find(t=>t.merchant===merchant)?.category || 'other';
+    // Category: try mapping the CSV's category value, else fall back to past transactions for this merchant
+    const mappedCat = mapCategoryValue(get('category'));
+    const pastCat = S.transactions.find(t=>t.merchant===merchant)?.category;
     const dc = defaultConvert(cents, cur);
     S.transactions.push({id:gid(), type, originalAmount:cents, originalCurrency:cur,
       convertedAmount: dc.ok?dc.amount:cents, exchangeRate:dc.rate||1,
-      category: get('category')||pastCat, merchant, accountId:accId,
+      category: mappedCat||pastCat||'other', merchant, accountId:accId,
       date:dateStr, note:get('notes')||''});
     imported++;
   });
