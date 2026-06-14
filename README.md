@@ -22,6 +22,18 @@ npx serve .
 
 ## Opening on iPhone
 
+### Option A: Live URL (recommended)
+
+The app is hosted via GitHub Pages at:
+
+**https://ivann9963.github.io/Personal-Finance/**
+
+Just open that link in Safari on your iPhone, then tap the **Share** button → **Add to Home Screen** to install it as a full-screen PWA with offline support.
+
+(If the page isn't live yet, enable it under repo **Settings → Pages**, source: `main` branch, root folder.)
+
+### Option B: Local network
+
 1. Make sure your iPhone is on the **same Wi-Fi network** as your Mac.
 2. Start the server as above (`python3 -m http.server 8000`).
 3. Find your Mac's local IP address:
@@ -29,6 +41,6 @@ npx serve .
    ipconfig getifaddr en0
    ```
 4. On your iPhone, open Safari and go to `http://<your-mac-ip>:8000` (e.g. `http://192.168.100.209:8000`).
-5. Tap the **Share** button → **Add to Home Screen** to install it as a PWA (gives you a full-screen app icon and offline support, no browser chrome).
+5. Tap the **Share** button → **Add to Home Screen**.
 
-> Note: the dev server has no HTTPS, so some PWA features (like the service worker) may behave differently than on a deployed HTTPS site, but the app itself works fine.
+> Note: the local dev server has no HTTPS, so some PWA features (like the service worker) may behave differently than on the deployed HTTPS site, but the app itself works fine either way.
