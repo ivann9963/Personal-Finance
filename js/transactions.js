@@ -1,0 +1,172 @@
+// === TRANSACTIONS ===
+function renderTransactions() {
+  const el = document.getElementById('tab-transactions');
+  const accOpts = S.accounts.map(a=>`<button class="filter-chip${_txFilter===a.id?' active':''}" onclick="setTxFilter('${a.id}')">${escHtml(a.name)}</button>`).join('');
+  el.innerHTML = `
+    <div id="ptr-indicator" class="ptr"><div class="ptr-spin"></div>Refreshing…</div>
+    <div class="tx-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="Search transactions…" value="${escHtml(_txSearch)}" oninput="setTxSearch(this.value)" autocomplete="off" inputmode="search">
+    </div>
+    <div class="filter-chips">
+      <button class="filter-chip${_txFilter==='all'?' active':''}" onclick="setTxFilter('all')">All</button>
+      <button class="filter-chip${_txFilter==='expense'?' active':''}" onclick="setTxFilter('expense')">Expenses</button>
+      <button class="filter-chip${_txFilter==='income'?' active':''}" onclick="setTxFilter('income')">Income</button>
+      <button class="filter-chip${_txFilter==='transfer'?' active':''}" onclick="setTxFilter('transfer')">Transfers</button>
+      ${accOpts}
+    </div>
+    <div id="tx-list-body"></div>`;
+  setupPTR(el);
+  renderTxList();
+}
+function setTxFilter(f) { _txFilter=f; _txPage=1; renderTransactions(); }
+function setTxSearch(v) { _txSearch=v; _txPage=1; renderTxList(); }
+function renderTxList() {
+  const body = document.getElementById('tx-list-body'); if (!body) return;
+  let txs = [...S.transactions];
+  // Filter
+  if (_txFilter==='expense'||_txFilter==='income'||_txFilter==='transfer') txs=txs.filter(t=>t.type===_txFilter);
+  else if (_txFilter!=='all') txs=txs.filter(t=>t.accountId===_txFilter);
+  // Search
+  if (_txSearch) {
+    const q = _txSearch.toLowerCase();
+    txs = txs.filter(t => t.merchant.toLowerCase().includes(q)||
+      (t.note||'').toLowerCase().includes(q)||
+      (getCatInfo(t.category).name||'').toLowerCase().includes(q));
+  }
+  const total = txs.length;
+  txs = txs.slice(0, _txPage*50);
+  // Group by day
+  const groups = {};
+  txs.forEach(t => { (groups[t.date]=groups[t.date]||[]).push(t); });
+  const days = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  const dc = S.settings.defaultCurrency;
+  if (!days.length) {
+    const isBlank = !_txSearch && _txFilter === 'all' && S.transactions.length === 0;
+    body.innerHTML = isBlank
+      ? `<div class="empty-state"><div style="font-size:48px;margin-bottom:12px">💸</div><div class="empty-state-title">No transactions yet</div><div class="empty-state-desc">Tap the + button to record your first transaction</div><button class="empty-state-btn" onclick="openAddTxSheet()">Add Transaction</button></div>`
+      : `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔍</div><div class="empty-state-title">No results</div><div class="empty-state-desc">Try a different search or filter</div></div>`;
+    return;
+  }
+  let html = '';
+  days.forEach(day => {
+    const dayTx = groups[day];
+    const net = dayTx.reduce((s,t)=>t.type==='income'?s+t.convertedAmount:t.type==='expense'?s-t.convertedAmount:s, 0);
+    const isToday = day === new Date().toISOString().slice(0,10);
+    const isYest  = day === new Date(Date.now()-864e5).toISOString().slice(0,10);
+    const dayLbl  = isToday?'Today':isYest?'Yesterday':formatDate(day,{weekday:'short',month:'short',day:'numeric'});
+    html += `<div class="tx-day-hdr"><span class="tx-day-label">${dayLbl}</span><span class="tx-day-net" style="color:${net>0?'var(--green)':net<0?'var(--red)':'var(--text-tertiary)'}">${net>0?'+':''}${formatCurrency(net,dc)}</span></div>`;
+    dayTx.forEach(t => { html += txRowHTML(t); });
+  });
+  if (total > _txPage*50) {
+    html += `<button class="load-more-btn" onclick="loadMoreTx()">Load more (${total - _txPage*50} remaining)</button>`;
+  }
+  body.innerHTML = html;
+  // Setup swipe + long press — pass the wrapper (.tx-row-wrap), not the inner row
+  document.querySelectorAll('#tx-list-body .tx-row-wrap').forEach(wrap => {
+    setupSwipeTx(wrap);
+    setupLongPressTx(wrap);
+  });
+}
+function loadMoreTx() { _txPage++; renderTxList(); }
+function txRowHTML(tx) {
+  const ci = getCatInfo(tx.category);
+  const dc = S.settings.defaultCurrency;
+  const showConv = tx.originalCurrency !== dc;
+  const sign = tx.type==='income'?'+':'';
+  return `<div class="tx-row-wrap">
+    <div class="tx-swipe-btns">
+      <button class="tx-swipe-btn edit-btn" onclick="openEditTxSheet('${tx.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit
+      </button>
+      <button class="tx-swipe-btn del-btn" onclick="deleteTx('${tx.id}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        Delete
+      </button>
+    </div>
+    <div class="tx-row" data-txid="${tx.id}" onclick="openTxDetail('${tx.id}')">
+      <div class="tx-cat-icon" style="background:${ci.color}22">${ci.emoji}</div>
+      <div class="tx-info">
+        <div class="tx-merchant">${escHtml(tx.merchant)}</div>
+        <div class="tx-meta">
+          <span class="tx-cat-tag">${escHtml(ci.name)}</span>
+          ${showConv?`<span class="tx-cur-badge">${tx.originalCurrency}</span>`:''}
+          ${tx.isRecurring?`<span class="tx-cur-badge" style="background:var(--accent-bg);color:var(--accent)">↻</span>`:''}
+        </div>
+      </div>
+      <div class="tx-amounts">
+        <div class="tx-amt ${tx.type==='transfer'?'':tx.type}">${sign}${formatCurrency(tx.originalAmount, tx.originalCurrency)}</div>
+        ${showConv?`<div class="tx-amt-sub">${sign}${formatCurrency(tx.convertedAmount,dc)}</div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+function setupSwipeTx(row) {
+  let startX=0, startY=0, moved=false;
+  const inner = row.querySelector('.tx-row'); if (!inner) return;
+  inner.addEventListener('touchstart', e=>{
+    startX=e.touches[0].clientX; startY=e.touches[0].clientY; moved=false;
+    if (_activeSwipeRow && _activeSwipeRow!==inner) resetSwipe(_activeSwipeRow);
+  },{passive:true});
+  inner.addEventListener('touchmove', e=>{
+    const dx=e.touches[0].clientX-startX, dy=e.touches[0].clientY-startY;
+    if (!moved && Math.abs(dy)>Math.abs(dx)) return;
+    moved=true;
+    if (dx < 0) inner.style.transform=`translateX(${Math.max(dx,-128)}px)`;
+  },{passive:true});
+  inner.addEventListener('touchend', ()=>{
+    if (!moved) return;
+    const x = parseFloat(inner.style.transform.replace('translateX(',''))||0;
+    if (x < -80) { inner.style.transform='translateX(-128px)'; _activeSwipeRow=inner; }
+    else resetSwipe(inner);
+  });
+}
+function resetSwipe(el) { if(el){el.style.transform='';} _activeSwipeRow=null; }
+function setupLongPressTx(row) {
+  const inner = row.querySelector('.tx-row'); if (!inner) return;
+  const txId = inner.dataset.txid;
+  inner.addEventListener('touchstart', ()=>{
+    _longPressTimer = setTimeout(()=>openQuickAction(txId), 500);
+  },{passive:true});
+  inner.addEventListener('touchend', ()=>clearTimeout(_longPressTimer));
+  inner.addEventListener('touchmove', ()=>clearTimeout(_longPressTimer));
+}
+function setupPTR(container) {
+  let startY=0, active=false;
+  container.addEventListener('touchstart', e=>{
+    if (container.scrollTop===0) { startY=e.touches[0].clientY; active=true; }
+  },{passive:true});
+  container.addEventListener('touchmove', e=>{
+    if (!active) return;
+    const dy = e.touches[0].clientY-startY;
+    const ind = document.getElementById('ptr-indicator');
+    if (ind && dy>0) ind.classList.add('ptr-active');
+  },{passive:true});
+  container.addEventListener('touchend', ()=>{
+    if (!active) return; active=false;
+    const ind = document.getElementById('ptr-indicator');
+    if (ind?.classList.contains('ptr-active')) {
+      renderTxList();
+      setTimeout(()=>ind.classList.remove('ptr-active'), 400);
+    }
+  });
+}
+function deleteTx(id) {
+  resetSwipe(_activeSwipeRow);
+  const wrap = document.querySelector(`[data-txid="${id}"]`)?.closest('.tx-row-wrap');
+  if (wrap) wrap.classList.add('tx-sliding-out');
+  setTimeout(()=>{
+    S.transactions = S.transactions.filter(t=>t.id!==id);
+    saveState(); renderCurrentTab();
+    showToast('Transaction deleted','success');
+  }, 280);
+}
+function duplicateTx(id) {
+  const tx = S.transactions.find(t=>t.id===id); if (!tx) return;
+  const copy = {...tx, id:gid(), date:new Date().toISOString().slice(0,10), isRecurring:false, recurringId:undefined};
+  S.transactions.unshift(copy);
+  saveState(); renderCurrentTab();
+  showToast('Transaction duplicated','success');
+}
+

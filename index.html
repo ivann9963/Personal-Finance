@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance</title>
+<meta name="theme-color" content="#0D1117" id="theme-meta">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Finance">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="app">
+
+<div id="loading" class="screen" style="align-items:center;justify-content:center">
+  <div style="text-align:center">
+    <div class="loading-logo">
+      <svg width="72" height="72" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+        <rect width="192" height="192" rx="40" fill="#0D1117"/>
+        <polyline points="24,148 64,104 96,116 136,68 168,44" stroke="#F0B429" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="168" cy="44" r="10" fill="#F0B429"/>
+      </svg>
+    </div>
+    <div class="loading-title">Finance</div>
+  </div>
+</div>
+
+<div id="onboarding" class="screen hidden"></div>
+
+<div id="main" class="screen hidden" style="flex-direction:column">
+  <div id="header">
+    <div id="header-title" style="font-size:18px;font-weight:700">Finance</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="icon-btn" onclick="openSettings()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="content" style="flex:1;overflow:hidden;position:relative">
+    <div id="tab-dashboard"    class="tab-screen"></div>
+    <div id="tab-transactions" class="tab-screen slide-right" style="display:none"></div>
+    <div id="tab-plan"         class="tab-screen slide-right" style="display:none"></div>
+    <div id="tab-analytics"    class="tab-screen slide-right" style="display:none"></div>
+    <div id="tab-accounts"     class="tab-screen slide-right" style="display:none"></div>
+  </div>
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-tab" data-tab="transactions" onclick="switchTab('transactions')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>
+      <span>Transactions</span>
+    </button>
+    <button class="nav-tab" data-tab="plan" onclick="switchTab('plan')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Plan</span>
+    </button>
+    <button class="nav-tab" data-tab="analytics" onclick="switchTab('analytics')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Analytics</span>
+    </button>
+    <button class="nav-tab" data-tab="accounts" onclick="switchTab('accounts')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span>Accounts</span>
+    </button>
+  </nav>
+</div>
+
+<button class="fab hidden" id="fab" onclick="openAddTxSheet()">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<div class="backdrop" id="backdrop" style="z-index:900" onclick="closeTopSheet()"></div>
+<div class="backdrop" id="backdrop2" style="z-index:1100" onclick="closeTopSheet2()"></div>
+<div id="sheets"></div>
+<div id="toast-container"></div>
+
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/recurring-insights.js"></script>
+<script src="js/import-export.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui-components.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/transactions.js"></script>
+<script src="js/plan.js"></script>
+<script src="js/analytics.js"></script>
+<script src="js/accounts.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/tx-form.js"></script>
+<script src="js/onboarding.js"></script>
+<script src="js/sample-data.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/pwa-init.js"></script>
+</body>
+</html>
