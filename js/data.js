@@ -12,8 +12,15 @@ function defaultState() {
     accounts: [], transactions: [], budgets: [],
     recurringSchedules: [], categories: JSON.parse(JSON.stringify(CATEGORIES)),
     exchangeRates: {}, settings: {defaultCurrency:'EUR',theme:'dark',firstDayOfWeek:'monday'},
-    dismissedInsights: [], onboardingComplete: false
+    dismissedInsights: [], onboardingComplete: false,
+    merchantCategories: {} // learned merchant name -> category id (grows as you categorize)
   };
+}
+// Remember which category a merchant belongs to, so future entries/imports auto-categorize it.
+function learnMerchantCategory(merchant, category) {
+  if (!merchant || merchant==='Unknown' || !category || category==='other') return;
+  if (!S.merchantCategories) S.merchantCategories = {};
+  S.merchantCategories[merchant] = category;
 }
 function loadState() {
   try {

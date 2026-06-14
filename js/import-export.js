@@ -191,7 +191,8 @@ function interpretCSVRow(row, posIsExpense) {
     type = special.type; category = special.category;
   } else {
     category = mappedCat
-      || inferCategoryFromMerchant(merchant)
+      || (S.merchantCategories && S.merchantCategories[merchant])   // learned from your history
+      || inferCategoryFromMerchant(merchant)                        // seeded keyword rules
       || (merchant !== 'Unknown' ? S.transactions.find(t=>t.merchant===merchant)?.category : null);
     if (!category) { category = 'other'; autoMatched = false; }
   }
@@ -275,9 +276,9 @@ function parseDateStr(s) {
     let [, a, b, y] = m;
     if (y.length===2) y = (+y<70?'20':'19')+y;
     a=+a; b=+b;
-    if (a>12) return `${y}-${pad2(b)}-${pad2(a)}`; // a must be day
+    if (a>12) return `${y}-${pad2(b)}-${pad2(a)}`; // a must be day -> b is month
     if (b>12) return `${y}-${pad2(a)}-${pad2(b)}`; // b must be day -> a is month
-    return `${y}-${pad2(a)}-${pad2(b)}`; // ambiguous, assume day-month (European)
+    return `${y}-${pad2(b)}-${pad2(a)}`; // ambiguous -> assume day/month (European default)
   }
   // "14 Jun 2026" / "14-Jun-2026"
   m = s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,9})\.?[\s\-,]+(\d{4})$/);
@@ -354,6 +355,7 @@ function runCSVImport() {
       convertedAmount: dc.ok?dc.amount:r.cents, exchangeRate:dc.rate||1,
       category: r.category, merchant:r.merchant, accountId:accId,
       date:r.dateStr, note:get(row,'notes')||'', importBatch:batchId});
+    if (r.type !== 'transfer') learnMerchantCategory(r.merchant, r.category); // remember for next time
     imported++;
   });
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));

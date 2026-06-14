@@ -20,6 +20,25 @@ Any other static file server works too, e.g.:
 npx serve .
 ```
 
+## Running the tests
+
+Unit tests cover the CSV-import logic (date/amount parsing, category mapping, merchant
+inference, transfer detection, and the learned-merchant memory). They run in plain Node — no
+dependencies, no browser:
+
+```bash
+node tests/run.js
+```
+
+You'll get colored per-case output and a pass/fail summary; the process exits non-zero if any
+test fails (handy for CI). Tests live in [tests/](tests/):
+
+- `tests/run.js` — the test cases and a tiny assertion framework.
+- `tests/harness.js` — loads the real `js/*.js` modules into a sandboxed Node context with
+  minimal DOM/storage stubs, so the actual app code is exercised (not a copy).
+
+To add cases, drop them into the relevant `suite(...)` block in `tests/run.js`.
+
 ## Opening on iPhone
 
 ### Option A: Live URL (recommended)

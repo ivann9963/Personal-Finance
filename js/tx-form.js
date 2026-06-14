@@ -136,6 +136,7 @@ function saveTx() {
   } else {
     S.transactions.unshift(tx);
   }
+  if (tx.type !== 'transfer') learnMerchantCategory(merchant, tx.category); // remember merchant -> category
   // Recurring schedule
   if (_txForm.recurring && !_txForm.editId) {
     const freq = document.getElementById('tx-freq')?.value||'monthly';
