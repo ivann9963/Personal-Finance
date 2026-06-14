@@ -139,31 +139,61 @@ function updateCSVMap(colIdx, field) {
   Object.keys(_csvMapping).forEach(k => { if (_csvMapping[k]===colIdx) delete _csvMapping[k]; });
   if (field !== 'skip') _csvMapping[field] = colIdx;
 }
+const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function pad2(n) { return String(n).padStart(2,'0'); }
 function parseDateStr(s) {
-  s=s.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}$/.test(s)) {
-    const [a,b,y]=s.split(/[\/\-\.]/);
-    return parseInt(a)>12 ? `${y}-${b}-${a}` : `${y}-${a}-${b}`;
+  s = (s||'').trim();
+  if (!s) return null;
+  // Strip a time component, e.g. "2024-01-15 10:30:00" or "2024-01-15T10:30:00Z"
+  s = s.replace(/[T ]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+\-]\d{2}:?\d{2})?$/, '');
+  // ISO: yyyy-mm-dd / yyyy/mm/dd / yyyy.mm.dd
+  let m = s.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (m) return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
+  // Numeric d/m/y or m/d/y
+  m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (m) {
+    let [, a, b, y] = m;
+    if (y.length===2) y = (+y<70?'20':'19')+y;
+    a=+a; b=+b;
+    if (a>12) return `${y}-${pad2(b)}-${pad2(a)}`; // a must be day
+    if (b>12) return `${y}-${pad2(a)}-${pad2(b)}`; // b must be day -> a is month
+    return `${y}-${pad2(a)}-${pad2(b)}`; // ambiguous, assume day-month (European)
   }
+  // "14 Jun 2026" / "14-Jun-2026"
+  m = s.match(/^(\d{1,2})[\s\-]([A-Za-z]{3,9})\.?[\s\-,]+(\d{4})$/);
+  if (m) { const mo=MONTH_NAMES.indexOf(m[2].slice(0,3).toLowerCase())+1; if(mo) return `${m[3]}-${pad2(mo)}-${pad2(m[1])}`; }
+  // "Jun 14, 2026" / "Jun 14 2026"
+  m = s.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (m) { const mo=MONTH_NAMES.indexOf(m[1].slice(0,3).toLowerCase())+1; if(mo) return `${m[3]}-${pad2(mo)}-${pad2(m[2])}`; }
+  // Fallback to native parsing
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
   return null;
+}
+function parseAmountStr(raw) {
+  let s = (raw||'').trim().replace(/[^0-9.,\-]/g,'');
+  if (!s) return NaN;
+  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot) s = s.replace(/\./g,'').replace(',','.'); // comma = decimal separator
+  else s = s.replace(/,/g,''); // comma = thousands separator
+  return parseFloat(s);
 }
 function runCSVImport() {
   const accId = document.getElementById('csv-account')?.value;
   if (!accId) { showToast('Select an account','error'); return; }
-  let imported=0, skipped=0;
+  let imported=0, invalid=0, duplicates=0;
   _csvData.rows.forEach(row => {
     const get = field => _csvMapping[field] != null ? (row[_csvMapping[field]]||'').trim() : '';
     const dateStr = parseDateStr(get('date'));
-    const rawAmt  = parseFloat(get('amount').replace(/[^0-9.\-]/g,''));
-    if (!dateStr || isNaN(rawAmt)) { skipped++; return; }
+    const rawAmt  = parseAmountStr(get('amount'));
+    if (!dateStr || isNaN(rawAmt)) { invalid++; return; }
     const cents = Math.round(Math.abs(rawAmt)*100);
     const cur   = get('currency') || S.settings.defaultCurrency;
     const merchant = get('merchant') || 'Unknown';
     const type  = rawAmt < 0 ? 'expense' : 'income';
     // Duplicate check
     const dup = S.transactions.some(t => t.date===dateStr && t.originalAmount===cents && t.merchant===merchant);
-    if (dup) { skipped++; return; }
+    if (dup) { duplicates++; return; }
     // Auto-category from past transactions
     const pastCat = S.transactions.find(t=>t.merchant===merchant)?.category || 'other';
     const dc = defaultConvert(cents, cur);
@@ -175,6 +205,9 @@ function runCSVImport() {
   });
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));
   saveState(); closeTopSheet(); renderCurrentTab();
-  showToast(`Imported ${imported}, skipped ${skipped} duplicates`,'success');
+  const parts = [`Imported ${imported}`];
+  if (duplicates) parts.push(`${duplicates} duplicates skipped`);
+  if (invalid) parts.push(`${invalid} rows could not be read`);
+  showToast(parts.join(', '), imported>0?'success':'error');
 }
 
