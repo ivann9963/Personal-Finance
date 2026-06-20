@@ -223,6 +223,30 @@ suite('vault balances — manual transfers survive recompute', () => {
   check('tagged + transfer flows combine', app.getState().accounts[1].balance, 4000);
 });
 
+suite('monthlyEquivalent — frequency normalization', () => {
+  // The headline subscriptions total must normalize every cadence to a monthly figure.
+  check('monthly is unchanged',        app.monthlyEquivalent(1199, 'monthly'), 1199);
+  check('yearly /12 (was the bug)',    app.monthlyEquivalent(12000, 'yearly'), 1000);
+  check('weekly ~x4.33',               app.monthlyEquivalent(1000, 'weekly'), Math.round(1000*52/12));
+  check('biweekly ~x2.17',             app.monthlyEquivalent(1000, 'biweekly'), Math.round(1000*26/12));
+  check('daily ~x30.4',                app.monthlyEquivalent(100, 'daily'), Math.round(100*30.4368));
+  check('unknown freq → unchanged',    app.monthlyEquivalent(500, 'whatever'), 500);
+});
+
+suite('recurringExpenseSchedules — only active expenses', () => {
+  freshState({
+    recurringSchedules: [
+      { id:'a', type:'expense',  active:true,  amount:1000, currency:'EUR', frequency:'monthly', startDate:'2026-01-01' },
+      { id:'b', type:'expense',  active:false, amount:1000, currency:'EUR', frequency:'monthly', startDate:'2026-01-01' },
+      { id:'c', type:'income',   active:true,  amount:1000, currency:'EUR', frequency:'monthly', startDate:'2026-01-01' },
+      { id:'d', type:'transfer', active:true,  amount:1000, currency:'EUR', frequency:'monthly', startDate:'2026-01-01' },
+    ],
+  });
+  const subs = app.recurringExpenseSchedules();
+  check('keeps only active expense', subs.length, 1);
+  check('correct one kept', subs[0].id, 'a');
+});
+
 suite('learnMerchantCategory — guards', () => {
   freshState();
   app.learnMerchantCategory('Local Bakery', 'food');

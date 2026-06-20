@@ -4,6 +4,7 @@ function showOnboarding() {
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('onboarding').classList.remove('hidden');
   document.getElementById('main').classList.add('hidden');
+  document.getElementById('fab').classList.add('hidden'); // in case onboarding is re-entered after Clear All Data
   _obStep=0; renderObStep();
 }
 function renderObStep() {
@@ -21,6 +22,10 @@ function renderObStep() {
       <div class="ob-sub">A personal finance tracker that lives on your phone. Private, offline-first, no sign-up required.</div>
       <div class="form-field"><label class="form-label">Default Currency</label>
         <select id="ob-currency" class="form-input" onchange="_obCurrency=this.value">${curOpts}</select></div>
+      <div style="display:flex;gap:10px;align-items:flex-start;background:var(--bg-elevated);border-radius:var(--radius);padding:12px 14px;margin-top:4px;text-align:left">
+        <span style="font-size:18px;line-height:1.3">🔒</span>
+        <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.45">Your data is stored <strong>only on this device</strong> — no account, no cloud, nobody else can see it. Save a backup from Settings now and then so you don't lose it.</div>
+      </div>
       <div class="ob-actions"><button class="btn-primary" onclick="obNext()">Get Started</button></div>
     </div>`,
     `<div class="ob-wrap">
@@ -42,12 +47,13 @@ function renderObStep() {
       </div>
     </div>`,
     `<div class="ob-wrap">
-      <div style="font-size:56px;margin-bottom:16px">🎲</div>
+      <div style="font-size:56px;margin-bottom:16px">🚀</div>
       <div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot active"></div>`).join('')}</div>
-      <div class="ob-title">Explore with sample data?</div>
-      <div class="ob-sub">Load 3 months of realistic transactions to see how everything works — you can delete it later.</div>
+      <div class="ob-title">How do you want to start?</div>
+      <div class="ob-sub">Import your real transactions from your bank, explore with sample data, or start with a clean slate.</div>
       <div class="ob-actions">
-        <button class="btn-primary" onclick="obLoadSample()">Yes, load sample data</button>
+        <button class="btn-primary" onclick="obImportCSV()">📥 Import from my bank (CSV)</button>
+        <button class="btn-secondary" onclick="obLoadSample()">🎲 Load sample data</button>
         <button class="btn-secondary" onclick="obFinish()">Start fresh</button>
       </div>
     </div>`
@@ -67,6 +73,15 @@ function obAddAccount() {
   obNext();
 }
 function obLoadSample() { loadSampleData(); obFinish(); }
+function obImportCSV() {
+  // CSV import needs an account to import into — create a starter one if the user skipped that step.
+  if (!S.accounts.length) {
+    const c = defaultConvert(0, _obCurrency);
+    S.accounts.push({id:gid(), name:'Main Account', type:'checking', balance:0, currency:_obCurrency, institution:'', convertedBalance:c.ok?c.amount:0});
+  }
+  obFinish();          // enter the app first…
+  openCSVImport();     // …then open the importer on top
+}
 function obFinish() {
   S.settings.defaultCurrency = _obCurrency;
   S.onboardingComplete = true;

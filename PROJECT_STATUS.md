@@ -51,10 +51,15 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 11. **Savings goals**: Any account can have a `goalAmount`; account cards show a mini progress bar; the detail sheet shows a full goal block with amount remaining / reached callout.
 12. **Edit recurring schedules**: Each schedule in the recurring manager now has an Edit (✎) button. Opens a sheet to change merchant, amount, currency, frequency, and category. Future auto-generated entries are dropped and regenerated with the new values; past transactions are preserved.
 13. **Cross-tab reactivity fixes**: every mutation now keeps *all* views fresh, not just the visible one. Split `invalidateOtherTabs()` out of `renderCurrentTab()` (`routing.js`) and wired it into the mutations that previously only re-rendered their own view: **account add/edit/delete** (dashboard net worth + insights were going stale), **budget add/delete** (dashboard insights), and **category reorder** (order shown in analytics + tx form). Adding an expense/transfer already propagated; these were the gaps. Verified each path re-invalidates the right tabs.
+14. **Settings restructured + Backup made prominent**: ditched the "Data" junk drawer. Groups are now Backup & Restore / Preferences / Manage (Categories, Recurring) / Import & Export / Danger Zone. A top **Backup card** shows "last backup N days ago" and turns amber/warns when stale (>14 days with real data); `exportJSON()` records `settings.lastBackupAt`. "Load Sample Data" is hidden once you have real transactions. Helpers `settingsRow()`, `relTimeSince()`, `backupStatus()`, `refreshSettingsIfOpen()`.
+15. **Subscriptions hub** (Plan → new *Subscriptions* segment): headline monthly + annual total over all active recurring expenses, sorted by next charge date, "due soon" highlight, tap-to-edit. Fixed a real bug — the old mini-list summed amounts **without normalizing frequency** (a €120/yr sub counted as €120/mo). New `monthlyEquivalent()` normalizes every cadence; `recurringExpenseSchedules()`, `nextChargeDate()` added. Budgets view now shows a compact "recurring payments" teaser linking here.
+16. **Fixed confusing UI signals**: (a) budget cards no longer show a green "−41%" pill next to a maxed-red bar — the month-over-month trend moved to the footer as a neutral "↓41% vs last mo", leaving budget status as the only colored signal; (b) the **Net Worth sparkline now actually renders** — `mkSparkline()` was missing `labels`, so Chart.js drew nothing (the hero card looked empty); (c) "Week starts on" is now a proper Monday/Sunday picker instead of an ambiguous toggle.
+17. **Smarter onboarding**: welcome step carries a "🔒 your data is stored only on this device — back it up" note; final step offers three real paths — **Import from my bank (CSV)** (creates a starter account if needed, then opens the importer), Load sample data, or Start fresh. `showOnboarding()` now hides the FAB (fixes overlap when re-entered via Clear All Data).
 
 ## Known limitations / what's left
 - **Reassign-on-delete** always sends a deleted category's transactions to "Other" (no pick-target).
-- **No cloud sync / backup-by-default** — data is per-device. JSON export/import exists in Settings; consider reminding users to back up.
+- **No cloud sync / backup-by-default** — data is per-device. Backup/restore is now front-and-center in Settings with a staleness reminder, but it's still manual (no automatic/scheduled backup).
+- **"Subscriptions" includes all recurring expenses** (rent, utilities, not just streaming) — useful as a total-commitment view, but the label may surprise users who expect only subscriptions.
 - **Round-up automation** for *manually-added* transactions (Revolut-style "round to nearest €1 into a vault") is not built — only imported round-ups are tracked.
 - **Merchant keyword rules** are a seed list; long-tail/local merchants rely on the learning system (categorize once → remembered).
 - **No multi-currency net-worth nuance** beyond manual exchange rates entered on transactions.
@@ -63,9 +68,9 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 ## Possible next steps (ideas, unprioritized)
 - Reassign-on-delete: pick target category when deleting a category (instead of always → Other).
 - Round-up automation toggle for new transactions.
-- Onboarding note clarifying "your data stays on your device".
 - CSV import: remember column mapping per bank; import history / undo-last-import (transactions already tagged with `importBatch`).
-- Optional cloud backup/sync.
+- Optional cloud backup/sync (or scheduled local-backup reminder/prompt).
+- Maybe split "Subscriptions" into true subscriptions vs. bills/rent, or rename to "Recurring".
 
 ## Gotchas to remember
 - Service worker is now network-first; if testing offline behavior, account for that.

@@ -18,7 +18,8 @@ function mkSparkline(canvasId, dataPoints) {
   const isDark = document.documentElement.dataset.theme !== 'light';
   _charts[canvasId] = new Chart(canvas, {
     type:'line',
-    data:{datasets:[{data:dataPoints, borderColor:'#F0B429', borderWidth:2,
+    data:{labels:dataPoints.map((_,i)=>i), // category axis needs labels or the line won't render
+      datasets:[{data:dataPoints, borderColor:'#F0B429', borderWidth:2,
       fill:true, backgroundColor:'rgba(240,180,41,.08)',
       pointRadius:0, tension:.4}]},
     options:{responsive:true, maintainAspectRatio:false,

@@ -1,74 +1,82 @@
 // === SETTINGS ===
+const CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`;
+// One settings row. `extra` is right-side content (defaults to a chevron); `danger` reddens the label.
+function settingsRow(onclick, icon, label, val, {extra=CHEVRON, danger=false, iconBg='#1C2128'}={}) {
+  return `<div class="settings-row" onclick="${onclick}">
+    <div class="settings-row-icon" style="background:${iconBg}">${icon}</div>
+    <div class="settings-row-info"><div class="settings-row-lbl"${danger?' style="color:var(--red)"':''}>${label}</div>${val?`<div class="settings-row-val">${val}</div>`:''}</div>
+    <div class="settings-row-right">${extra}</div>
+  </div>`;
+}
+// Human-readable "time since" for the last-backup line.
+function relTimeSince(ts) {
+  if (!ts) return null;
+  const days = Math.floor((Date.now()-ts)/864e5);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days/30);
+  return months === 1 ? 'a month ago' : `${months} months ago`;
+}
+// Backup health: stale if never, or older than 14 days, AND there is real data to lose.
+function backupStatus() {
+  const hasData = S.transactions.length > 0 || S.accounts.length > 0;
+  const last = S.settings.lastBackupAt;
+  const rel = relTimeSince(last);
+  const days = last ? (Date.now()-last)/864e5 : Infinity;
+  const stale = hasData && days > 14;
+  return {hasData, rel, stale};
+}
+function refreshSettingsIfOpen() {
+  if (document.getElementById('sheet-settings')) openSettings();
+}
 function openSettings() {
   const themeLabel = {dark:'Dark',light:'Light',system:'System'}[S.settings.theme]||'Dark';
   const dcInfo = getCurInfo(S.settings.defaultCurrency);
+  const hasTx = S.transactions.length > 0;
+  const bk = backupStatus();
+  // Prominent backup card — the thing that protects the user's whole financial history.
+  const backupCard = `
+    <div style="margin:8px 16px 4px;padding:16px;border-radius:var(--radius);background:${bk.stale?'var(--red-bg)':'var(--bg-elevated)'};border:1px solid ${bk.stale?'var(--red)':'transparent'}">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:18px">${bk.stale?'⚠️':'🛡️'}</span>
+        <span style="font-weight:700;font-size:15px">Backup</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.45;margin-bottom:12px">
+        ${bk.rel
+          ? `Last backup <strong style="color:${bk.stale?'var(--red)':'var(--text-primary)'}">${bk.rel}</strong>. Your data lives only on this device${bk.stale?' — back it up so a lost phone or cleared browser can\'t erase it.':'.'}`
+          : `Your data lives <strong>only on this device</strong>. If you clear your browser or lose your phone, it\'s gone. Save a backup file you can restore from.`}
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-primary" style="flex:1;padding:11px" onclick="exportJSON()">Back Up Now</button>
+        <button class="btn-secondary" style="flex:1;padding:11px" onclick="pickImportJSON()">Restore</button>
+      </div>
+    </div>`;
   const html = `
     <div class="sheet-handle"></div>
     <div class="sheet-title">Settings</div>
     <div class="sheet-body" style="padding:0 0 max(24px,var(--safe-bottom))">
+      <div class="settings-grp-title">Backup &amp; Restore</div>
+      ${backupCard}
+
       <div class="settings-grp-title">Preferences</div>
-      <div class="settings-row" onclick="openThemePicker()">
-        <div class="settings-row-icon" style="background:#1C2128">🎨</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Theme</div><div class="settings-row-val">${themeLabel}</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="openCurrencyPicker('${S.settings.defaultCurrency}',setDefaultCurrency)">
-        <div class="settings-row-icon" style="background:#1C2128">💱</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Default Currency</div><div class="settings-row-val">${dcInfo.code} — ${dcInfo.name}</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="toggleFirstDay()">
-        <div class="settings-row-icon" style="background:#1C2128">📅</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">First Day of Week</div><div class="settings-row-val">${S.settings.firstDayOfWeek==='monday'?'Monday':'Sunday'}</div></div>
-        <div class="settings-row-right"><div class="toggle${S.settings.firstDayOfWeek==='monday'?' on':''}"></div></div>
-      </div>
-      <div class="settings-grp-title">Data</div>
-      <div class="settings-row" onclick="openCSVImport()">
-        <div class="settings-row-icon" style="background:#1C2128">📥</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Import CSV</div><div class="settings-row-val">Revolut, N26, Wise, Monzo…</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="pickImportJSON()">
-        <div class="settings-row-icon" style="background:#1C2128">📤</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Import JSON Backup</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="exportJSON()">
-        <div class="settings-row-icon" style="background:#1C2128">💾</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Export JSON</div><div class="settings-row-val">Full backup</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="exportCSV()">
-        <div class="settings-row-icon" style="background:#1C2128">📊</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Export CSV</div><div class="settings-row-val">Transactions only</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="loadSampleData()">
-        <div class="settings-row-icon" style="background:#1C2128">🎲</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Load Sample Data</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="openCategoriesManager()">
-        <div class="settings-row-icon" style="background:#1C2128">🏷️</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Categories</div><div class="settings-row-val">Add, edit, reorder</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="openRecurringManager()">
-        <div class="settings-row-icon" style="background:#1C2128">🔄</div>
-        <div class="settings-row-info"><div class="settings-row-lbl">Recurring & Subscriptions</div><div class="settings-row-val">Pause or delete scheduled transactions</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
+      ${settingsRow('openThemePicker()', '🎨', 'Theme', themeLabel)}
+      ${settingsRow(`openCurrencyPicker('${S.settings.defaultCurrency}',setDefaultCurrency)`, '💱', 'Default Currency', `${dcInfo.code} — ${dcInfo.name}`)}
+      ${settingsRow('openFirstDayPicker()', '📅', 'Week starts on', S.settings.firstDayOfWeek==='monday'?'Monday':'Sunday')}
+
+      <div class="settings-grp-title">Manage</div>
+      ${settingsRow('openCategoriesManager()', '🏷️', 'Categories', 'Add, edit, reorder')}
+      ${settingsRow('openRecurringManager()', '🔄', 'Recurring &amp; Subscriptions', 'Manage scheduled payments')}
+
+      <div class="settings-grp-title">Import &amp; Export</div>
+      ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV)', 'Revolut, N26, Wise, Monzo…')}
+      ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets')}
+
       <div class="settings-grp-title">Danger Zone</div>
-      <div class="settings-row" onclick="clearTransactions()">
-        <div class="settings-row-icon" style="background:var(--red-bg)">🧹</div>
-        <div class="settings-row-info"><div class="settings-row-lbl" style="color:var(--red)">Delete All Transactions</div><div class="settings-row-val">Keeps accounts, budgets & categories</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
-      <div class="settings-row" onclick="clearAllData()">
-        <div class="settings-row-icon" style="background:var(--red-bg)">🗑️</div>
-        <div class="settings-row-info"><div class="settings-row-lbl" style="color:var(--red)">Clear All Data</div></div>
-        <div class="settings-row-right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
-      </div>
+      ${!hasTx ? settingsRow('loadSampleData()', '🎲', 'Load Sample Data', 'Fills the app with demo data to explore') : ''}
+      ${settingsRow('clearTransactions()', '🧹', 'Delete All Transactions', 'Keeps accounts, budgets &amp; categories', {danger:true, iconBg:'var(--red-bg)'})}
+      ${settingsRow('clearAllData()', '🗑️', 'Clear All Data', 'Erase everything on this device', {danger:true, iconBg:'var(--red-bg)'})}
+
       <div style="padding:20px 16px;font-size:12px;color:var(--text-tertiary);text-align:center">Finance v1.0 · All data stored locally on device</div>
     </div>`;
   openSheet('settings', html);
@@ -93,9 +101,15 @@ function setDefaultCurrency(code) {
   showToast(`Default currency: ${code}`,'success');
   renderCurrentTab();
 }
-function toggleFirstDay() {
-  S.settings.firstDayOfWeek = S.settings.firstDayOfWeek==='monday'?'sunday':'monday';
-  saveState(); closeTopSheet(); openSettings();
+function openFirstDayPicker() {
+  const days = [{id:'monday',label:'Monday'},{id:'sunday',label:'Sunday'}];
+  const rows = days.map(d=>`<div class="quick-item" onclick="setFirstDay('${d.id}');closeTopSheet2()">${d.label}${S.settings.firstDayOfWeek===d.id?' ✓':''}</div>`).join('');
+  openSheet2('firstday-picker',`<div class="sheet-handle"></div><div class="sheet-title">Week starts on</div><div class="sheet-body" style="padding:0">${rows}</div>`);
+}
+function setFirstDay(day) {
+  S.settings.firstDayOfWeek = day; saveState();
+  refreshSettingsIfOpen();
+  invalidateOtherTabs(); // the Plan calendar grid depends on this
 }
 function pickImportJSON() {
   const inp = document.createElement('input');

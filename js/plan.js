@@ -4,6 +4,7 @@ function renderPlan() {
   el.innerHTML = `
     <div class="seg" style="margin:12px 16px">
       <button class="seg-btn${_planView==='budgets'?' active':''}" onclick="setPlanView('budgets')">Budgets</button>
+      <button class="seg-btn${_planView==='subscriptions'?' active':''}" onclick="setPlanView('subscriptions')">Subscriptions</button>
       <button class="seg-btn${_planView==='calendar'?' active':''}" onclick="setPlanView('calendar')">Calendar</button>
     </div>
     <div id="plan-content"></div>`;
@@ -13,7 +14,27 @@ function setPlanView(v) { _planView=v; renderPlan(); }
 function renderPlanContent() {
   const el = document.getElementById('plan-content'); if (!el) return;
   if (_planView==='budgets') renderBudgets(el);
+  else if (_planView==='subscriptions') renderSubscriptions(el);
   else renderCalendar(el);
+}
+
+// --- Recurring / subscription helpers ---
+// Average occurrences per month for each cycle, so amounts of different cadences compare fairly.
+const MONTHLY_FACTOR = {daily:30.4368, weekly:52/12, biweekly:26/12, monthly:1, yearly:1/12};
+// A recurring charge's cost normalized to a monthly figure, in the default currency (cents).
+function monthlyEquivalent(cents, frequency) {
+  return Math.round(cents * (MONTHLY_FACTOR[frequency] ?? 1));
+}
+// Active recurring *expenses* = the user's committed recurring payments (subscriptions, rent, utilities…).
+function recurringExpenseSchedules() {
+  return S.recurringSchedules.filter(s => s.active && s.type === 'expense');
+}
+// The next future occurrence on or after today (guarded against bad data).
+function nextChargeDate(r) {
+  const tod = new Date().toISOString().slice(0,10);
+  let next = r.startDate, guard = 0;
+  while (next <= tod && guard++ < 1000) next = getNextOccurrence(next, r.frequency);
+  return next;
 }
 function renderBudgets(el) {
   const dc = S.settings.defaultCurrency;
@@ -50,35 +71,19 @@ function renderBudgets(el) {
     return `<div class="budget-card${over?' exceeded':''}" style="cursor:pointer" onclick="openEditBudget('${escHtml(b.category)}')">
       <div class="budget-hdr">
         <div class="budget-name">${ci.emoji} ${escHtml(ci.name)}</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${delta!==null?`<span class="budget-delta ${delta>0?'up':'down'}">${delta>0?'+':''}${delta}%</span>`:''}
-          <div class="budget-amts"><span class="budget-spent" style="color:${over?'var(--red)':'var(--text-primary)'}">${formatCurrency(spent,dc)}</span><span class="budget-total"> / ${formatCurrency(budAmt,dc)}</span></div>
-        </div>
+        <div class="budget-amts"><span class="budget-spent" style="color:${over?'var(--red)':'var(--text-primary)'}">${formatCurrency(spent,dc)}</span><span class="budget-total"> / ${formatCurrency(budAmt,dc)}</span></div>
       </div>
       <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct>0?Math.max(pct,3):0}%"></div></div>
       <div class="budget-footer">
-        <span>${over?'⚠️ Over budget':formatCurrency(remaining,dc)+' remaining'}</span>
+        <span style="color:${over?'var(--red)':'var(--text-secondary)'};font-weight:500">${over?'⚠️ '+formatCurrency(spent-budAmt,dc)+' over':formatCurrency(remaining,dc)+' left'}</span>
+        ${delta!==null?`<span style="color:var(--text-tertiary)">${delta>0?'↑':'↓'}${Math.abs(delta)}% vs last mo</span>`:''}
         <span>${daysLeft} days left</span>
       </div>
     </div>`;
   }).join('');
-  // Subscriptions
-  const subSchs = S.recurringSchedules.filter(s=>s.category==='subscriptions'&&s.active);
-  const subMonthly = subSchs.reduce((s,r)=>{const c=defaultConvert(r.amount,r.currency);return s+(c.ok?c.amount:r.amount);},0);
-  const subRows = subSchs.map(r => {
-    const c = defaultConvert(r.amount, r.currency);
-    const mo = c.ok?c.amount:r.amount;
-    const annual = r.frequency==='monthly'?mo*12:r.frequency==='yearly'?mo:mo*12;
-    // Next charge
-    let next = r.startDate;
-    const tod = new Date().toISOString().slice(0,10);
-    while(next <= tod) next = getNextOccurrence(next, r.frequency);
-    return `<div class="sub-row">
-      <div class="sub-icon">📱</div>
-      <div class="sub-info"><div class="sub-name">${escHtml(r.merchant)}</div><div class="sub-cycle">Next: ${formatDate(next,{month:'short',day:'numeric'})} · ${r.frequency}</div></div>
-      <div class="sub-right"><div class="sub-amt">${formatCurrency(r.frequency==='monthly'?r.amount:Math.round(r.amount/12),r.currency)}/mo</div><div class="sub-annual">${formatCurrency(annual,dc)}/yr</div></div>
-    </div>`;
-  }).join('');
+  // Compact subscriptions teaser — full breakdown lives in the Subscriptions segment.
+  const recur = recurringExpenseSchedules();
+  const recurMonthly = recur.reduce((s,r)=>{const c=defaultConvert(r.amount,r.currency);return s+monthlyEquivalent(c.ok?c.amount:r.amount, r.frequency);},0);
   el.innerHTML = `
     <div class="plan-month-nav">
       <button onclick="shiftBudgetMonth(-1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -88,17 +93,15 @@ function renderBudgets(el) {
     ${S.budgets.length?`<div class="donut-wrap"><canvas id="budget-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Spent</div><div class="donut-center-amt">${formatCurrency(totalSpent,dc,true)}</div></div></div>`:''}
     ${budgetCards||`<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🎯</div><div class="empty-state-title">No budgets yet</div><div class="empty-state-desc">Set spending limits by category</div><button class="empty-state-btn" onclick="openAddBudgetSheet()">Add Budget</button></div>`}
     ${S.budgets.length?`<button class="add-acc-btn" style="margin:4px 16px 0" onclick="openAddBudgetSheet()">+ Add Budget</button>`:''}
-    <div class="section-hdr" style="padding-top:20px;display:flex;align-items:center;justify-content:space-between">
-      <span>Subscriptions</span>
-      <button class="see-all-btn" style="font-size:13px;color:var(--accent);font-weight:500" onclick="openRecurringManager()">Manage</button>
-    </div>
-    ${subSchs.length?`
-      <div class="sub-totals">
-        <div class="sub-monthly-amt">${formatCurrency(subMonthly,dc)}</div>
-        <div class="sub-annual-lbl">per month · ${formatCurrency(subMonthly*12,dc)} per year</div>
+    ${recur.length?`
+    <div style="margin:20px 16px 0;padding:14px 16px;border-radius:var(--radius);background:var(--bg-elevated);display:flex;align-items:center;gap:12px;cursor:pointer" onclick="setPlanView('subscriptions')">
+      <div style="font-size:22px">🔁</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">Recurring payments</div>
+        <div style="font-size:12px;color:var(--text-secondary)">${recur.length} active · ${formatCurrency(recurMonthly,dc)}/mo</div>
       </div>
-      ${subRows}`
-    :`<div style="padding:16px;color:var(--text-secondary);font-size:14px">No subscriptions tracked. Tag recurring transactions with <strong>Subscriptions</strong> category.</div>`}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-tertiary)"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`:''}
     <div style="height:16px"></div>`;
   if (S.budgets.length) {
     requestAnimationFrame(()=> {
@@ -109,6 +112,59 @@ function renderBudgets(el) {
 function shiftBudgetMonth(d) {
   _budgetMonth.setMonth(_budgetMonth.getMonth()+d);
   renderPlanContent();
+}
+function renderSubscriptions(el) {
+  const dc = S.settings.defaultCurrency;
+  const tod = new Date().toISOString().slice(0,10);
+  const in7 = new Date(Date.now()+7*864e5).toISOString().slice(0,10);
+  const subs = recurringExpenseSchedules().map(r => {
+    const c = defaultConvert(r.amount, r.currency);
+    const inDc = c.ok ? c.amount : r.amount;
+    return {...r, inDc, monthly: monthlyEquivalent(inDc, r.frequency), next: nextChargeDate(r)};
+  }).sort((a,b) => a.next.localeCompare(b.next));
+
+  if (!subs.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div style="font-size:40px;margin-bottom:12px">🔁</div>
+      <div class="empty-state-title">No recurring payments yet</div>
+      <div class="empty-state-desc">When you add a transaction, flip on <strong>Recurring</strong> to track subscriptions, rent and bills here — with your total monthly commitment and what's due next.</div>
+      <button class="empty-state-btn" onclick="openAddTxSheet()">Add Transaction</button>
+    </div>`;
+    return;
+  }
+
+  const totalMonthly = subs.reduce((s,r)=>s+r.monthly, 0);
+  const cycleLabel = {daily:'daily', weekly:'weekly', biweekly:'every 2 weeks', monthly:'monthly', yearly:'yearly'};
+  const rows = subs.map(r => {
+    const ci = getCatInfo(r.category);
+    const dueSoon = r.next <= in7;
+    const nextLbl = r.next===tod ? 'Today' : formatDate(r.next, {month:'short', day:'numeric'});
+    return `<div class="sub-row" style="cursor:pointer" onclick="openEditRecurringSheet('${r.id}')">
+      <div class="sub-icon" style="background:${ci.color}22">${ci.emoji}</div>
+      <div class="sub-info">
+        <div class="sub-name">${escHtml(r.merchant)}</div>
+        <div class="sub-cycle">
+          <span style="color:${dueSoon?'var(--amber)':'var(--text-secondary)'}">${dueSoon?'⏰ ':''}${nextLbl}</span>
+          · ${cycleLabel[r.frequency]||r.frequency}
+        </div>
+      </div>
+      <div class="sub-right">
+        <div class="sub-amt">${formatCurrency(r.amount, r.currency)}</div>
+        ${r.frequency!=='monthly'?`<div class="sub-annual">${formatCurrency(r.monthly,dc)}/mo</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="sub-totals" style="text-align:center;padding:8px 16px 16px">
+      <div class="sub-monthly-amt" style="font-size:34px;font-weight:800">${formatCurrency(totalMonthly,dc)}</div>
+      <div class="sub-annual-lbl">per month · ${formatCurrency(totalMonthly*12,dc)} per year · ${subs.length} active</div>
+    </div>
+    ${rows}
+    <div style="padding:16px;text-align:center">
+      <button class="see-all-btn" style="font-size:13px;color:var(--accent);font-weight:600" onclick="openRecurringManager()">Manage all recurring →</button>
+    </div>
+    <div style="height:16px"></div>`;
 }
 function renderCalendar(el) {
   const dc = S.settings.defaultCurrency;

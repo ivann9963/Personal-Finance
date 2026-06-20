@@ -1,8 +1,11 @@
 // === IMPORT / EXPORT ===
 function exportJSON() {
+  S.settings.lastBackupAt = Date.now(); // remember when the user last backed up
   const blob = new Blob([JSON.stringify(S,null,2)], {type:'application/json'});
   dlBlob(blob, `finance-backup-${today()}.json`);
-  showToast('Backup exported','success');
+  saveState();
+  if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen();
+  showToast('Backup saved','success');
 }
 function exportCSV() {
   const hdr = 'Date,Type,Merchant,Category,Amount,Currency,ConvertedAmount,DefaultCurrency,Account,Note\n';
@@ -34,6 +37,7 @@ function importJSON(file) {
       if (!confirm(`Import backup?\n${accCount} accounts, ${txCount} transactions.\nThis will overwrite current data.`)) return;
       S = {...defaultState(), ...parsed, settings:{...defaultState().settings,...(parsed.settings||{})}};
       saveState(); applyTheme(); generateRecurring(); renderCurrentTab();
+      if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen();
       showToast(`Imported ${txCount} transactions`,'success');
     } catch(e) { showToast('Invalid JSON file','error'); }
   };
