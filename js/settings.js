@@ -18,13 +18,16 @@ function relTimeSince(ts) {
   const months = Math.floor(days/30);
   return months === 1 ? 'a month ago' : `${months} months ago`;
 }
-// Backup health: stale if never, or older than 14 days, AND there is real data to lose.
+// Backup health. Stale when there's real data to lose AND it's been a while since the last
+// backup (>14 days), or — if never backed up — since first use (>3 days). The first-use grace
+// avoids nagging brand-new users (and people just exploring sample data) the moment they start.
 function backupStatus() {
   const hasData = S.transactions.length > 0 || S.accounts.length > 0;
   const last = S.settings.lastBackupAt;
+  const created = S.settings.createdAt || Date.now();
   const rel = relTimeSince(last);
-  const days = last ? (Date.now()-last)/864e5 : Infinity;
-  const stale = hasData && days > 14;
+  const daysSince = last ? (Date.now()-last)/864e5 : (Date.now()-created)/864e5;
+  const stale = hasData && (last ? daysSince > 14 : daysSince > 3);
   return {hasData, rel, stale};
 }
 function refreshSettingsIfOpen() {

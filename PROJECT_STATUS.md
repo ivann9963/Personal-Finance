@@ -58,6 +58,13 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 18. **Stale-backup reminder**: the dashboard shows a red "No recent backup" banner (with Back Up Now + dismiss) when `backupStatus().stale` and not snoozed in the last 7 days. Reuses the ATH-banner style; `backupNowFromDashboard()` / `snoozeBackupReminder()` in `dashboard.js`.
 19. **Undo last import**: `runCSVImport()` records `S.lastImport = {batch,count,at}`; Settings → Import & Export shows "Undo last import (N)" which removes that batch's transactions, recomputes vault balances, and drops any now-empty auto-created savings vaults. Your own (non-imported) transactions are untouched.
 20. **Reassign-on-delete category**: deleting a category that's in use now opens an in-place picker to choose where its transactions move (default Other), instead of silently dumping everything into Other. `finalizeDeleteCategory(id,target)` does the move + cleanup.
+21. **UX sweep / first-impression polish** (benchmarked vs Actual Budget / Ivy Wallet / Firefly III — our edge is mobile-first speed + delight):
+    - **Inviting empty-state dashboard**: a brand-new user now sees a 👋 welcome with four tappable next steps (add transaction / add account / import from bank / explore sample data) instead of an empty €0 hero + pointless velocity strip + flat sparkline. `getStartedRow()`, `dashboardImport()` in `dashboard.js`.
+    - **Hero trend delta**: the Net Worth card shows "▲/▼ €X · last 30 days" (net cash flow) so the headline number means something.
+    - **One banner at a time**: backup nudge outranks the install hint; never both stacked.
+    - **No premature backup nagging**: `settings.createdAt` (stamped on first save) gives new users a grace period — `backupStatus()` is stale only after >14 days since last backup, or >3 days since first use if never backed up.
+    - **Believable sample data**: supermarkets (Lidl/Aldi/Kaufland/Penny/Rewe) are now **Groceries** not Food, so the demo's analytics look right (Food dropped 44%→12%, Groceries is its own 29% slice) and showcase the category. Added a groceries budget.
+    - **Expense sign consistency**: transaction rows show "−€X" (matching the day-total signs); income "+", transfers none.
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).

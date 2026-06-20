@@ -32,6 +32,7 @@ function loadState() {
 }
 function saveState() {
   try {
+    if (S.settings && !S.settings.createdAt) S.settings.createdAt = Date.now(); // first-use stamp (gates backup nudge)
     const json = JSON.stringify(S);
     if (new Blob([json]).size > 4.2e6) showToast('Storage near limit (4MB)','warning');
     localStorage.setItem(STORAGE_KEY, json);

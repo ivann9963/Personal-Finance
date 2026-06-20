@@ -32,8 +32,8 @@ function loadSampleData() {
     const d=new Date(now); d.setDate(d.getDate()-daysBack);
     if (d>now) continue;
     const dow=d.getDay();
-    // Groceries Mon,Wed,Sat
-    if ([1,3,6].includes(dow)) addSampleTx('expense',2500+rnd(6000),'EUR','food',stores[rnd(stores.length)],acc1Id,d);
+    // Groceries Mon,Wed,Sat — supermarkets belong in Groceries, not Food & Dining
+    if ([1,3,6].includes(dow)) addSampleTx('expense',2500+rnd(6000),'EUR','groceries',stores[rnd(stores.length)],acc1Id,d);
     // Coffee almost daily
     if (Math.random()<0.65) addSampleTx('expense',300+rnd(300),'EUR','food',coffees[rnd(coffees.length)],acc1Id,d);
     // Restaurant Fri/Sat evening
@@ -64,9 +64,9 @@ function loadSampleData() {
   addSampleTx('expense',Math.round(2999*0.92),'EUR','shopping','Amazon US',acc3Id,new Date(now.getFullYear(),now.getMonth()-1,8));
   // Budgets
   if (!S.budgets.length) {
-    S.budgets.push({id:gid(),category:'food',amount:60000,currency:'EUR'});
+    S.budgets.push({id:gid(),category:'groceries',amount:40000,currency:'EUR'});
+    S.budgets.push({id:gid(),category:'food',amount:25000,currency:'EUR'});
     S.budgets.push({id:gid(),category:'transport',amount:15000,currency:'EUR'});
-    S.budgets.push({id:gid(),category:'entertainment',amount:10000,currency:'EUR'});
     S.budgets.push({id:gid(),category:'shopping',amount:20000,currency:'EUR'});
   }
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));

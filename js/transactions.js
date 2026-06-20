@@ -79,7 +79,7 @@ function txRowHTML(tx) {
   const ci = getCatInfo(tx.category);
   const dc = S.settings.defaultCurrency;
   const showConv = tx.originalCurrency !== dc;
-  const sign = tx.type==='income'?'+':'';
+  const sign = tx.type==='income'?'+':tx.type==='expense'?'-':''; // explicit −; matches day totals
   const isTransfer = tx.type === 'transfer';
   const fromAcc = isTransfer ? S.accounts.find(a=>a.id===tx.accountId) : null;
   const toAcc   = isTransfer ? S.accounts.find(a=>a.id===tx.toAccountId) : null;
