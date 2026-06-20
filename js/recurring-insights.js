@@ -140,10 +140,11 @@ function toggleRecurringActive(id) {
   saveState(); renderRecurringList(); renderCurrentTab();
 }
 function deleteRecurringSchedule(id) {
-  if (!confirm('Delete this recurring schedule? Past transactions are kept; no new ones will be generated.')) return;
-  S.recurringSchedules = S.recurringSchedules.filter(s => s.id !== id);
-  saveState(); renderRecurringList(); renderCurrentTab();
-  showToast('Recurring schedule deleted', 'success');
+  confirmDialog({title:'Delete recurring schedule?', message:'Past transactions are kept; no new ones will be generated.', confirmLabel:'Delete', danger:true}, ()=>{
+    S.recurringSchedules = S.recurringSchedules.filter(s => s.id !== id);
+    saveState(); renderRecurringList(); renderCurrentTab();
+    showToast('Recurring schedule deleted', 'success');
+  });
 }
 function openEditRecurringSheet(id) {
   const r = S.recurringSchedules.find(s=>s.id===id); if (!r) return;

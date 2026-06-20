@@ -175,9 +175,10 @@ function saveAccount(editId) {
   showToast(`Account ${editId?'updated':'added'}`,'success');
 }
 function deleteAccount(id) {
-  if (!confirm('Delete this account? Transactions will be kept.')) return;
-  S.accounts = S.accounts.filter(a=>a.id!==id);
-  saveState(); renderCurrentTab(); // net worth + insights live on other tabs
-  showToast('Account deleted','success');
+  confirmDialog({title:'Delete account?', message:'Its transactions will be kept.', confirmLabel:'Delete', danger:true}, ()=>{
+    S.accounts = S.accounts.filter(a=>a.id!==id);
+    saveState(); renderCurrentTab(); // net worth + insights live on other tabs
+    showToast('Account deleted','success');
+  });
 }
 

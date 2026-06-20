@@ -25,20 +25,21 @@ function undoLastImport() {
   const li = S.lastImport;
   const n = li && li.batch ? S.transactions.filter(t=>t.importBatch===li.batch).length : 0;
   if (!n) { S.lastImport = null; showToast('Nothing to undo','info'); refreshSettingsIfOpen?.(); return; }
-  if (!confirm(`Undo last import?\nThis removes ${n} imported transaction${n!==1?'s':''}. Anything you added or edited yourself is kept.`)) return;
-  S.transactions = S.transactions.filter(t=>t.importBatch!==li.batch);
-  recomputeVaultBalances();
-  // Drop savings vaults this import auto-created that are now empty and hold no reconciled balance.
-  S.accounts = S.accounts.filter(a => {
-    if (!a.isVault) return true;
-    const stillUsed = S.transactions.some(t => t.savingsVault===a.vaultName || t.accountId===a.id || t.toAccountId===a.id);
-    return stillUsed || a.balance !== 0;
+  confirmDialog({title:'Undo last import?', message:`This removes ${n} imported transaction${n!==1?'s':''}. Anything you added or edited yourself is kept.`, confirmLabel:'Undo import', danger:true}, ()=>{
+    S.transactions = S.transactions.filter(t=>t.importBatch!==li.batch);
+    recomputeVaultBalances();
+    // Drop savings vaults this import auto-created that are now empty and hold no reconciled balance.
+    S.accounts = S.accounts.filter(a => {
+      if (!a.isVault) return true;
+      const stillUsed = S.transactions.some(t => t.savingsVault===a.vaultName || t.accountId===a.id || t.toAccountId===a.id);
+      return stillUsed || a.balance !== 0;
+    });
+    S.lastImport = null;
+    saveState();
+    refreshSettingsIfOpen?.();
+    renderCurrentTab();
+    showToast(`Removed ${n} imported transactions`,'success');
   });
-  S.lastImport = null;
-  saveState();
-  refreshSettingsIfOpen?.();
-  renderCurrentTab();
-  showToast(`Removed ${n} imported transactions`,'success');
 }
 function dlBlob(blob, name) {
   const a = document.createElement('a');
@@ -54,11 +55,12 @@ function importJSON(file) {
       const parsed = JSON.parse(e.target.result);
       const txCount = parsed.transactions?.length ?? 0;
       const accCount = parsed.accounts?.length ?? 0;
-      if (!confirm(`Import backup?\n${accCount} accounts, ${txCount} transactions.\nThis will overwrite current data.`)) return;
-      S = {...defaultState(), ...parsed, settings:{...defaultState().settings,...(parsed.settings||{})}};
-      saveState(); applyTheme(); generateRecurring(); renderCurrentTab();
-      if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen();
-      showToast(`Imported ${txCount} transactions`,'success');
+      confirmDialog({title:'Restore from backup?', message:`This replaces your current data with ${accCount} account${accCount!==1?'s':''} and ${txCount} transaction${txCount!==1?'s':''} from the file.`, confirmLabel:'Restore', danger:true}, ()=>{
+        S = {...defaultState(), ...parsed, settings:{...defaultState().settings,...(parsed.settings||{})}};
+        saveState(); applyTheme(); generateRecurring(); renderCurrentTab();
+        if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen();
+        showToast(`Imported ${txCount} transactions`,'success');
+      });
     } catch(e) { showToast('Invalid JSON file','error'); }
   };
   r.readAsText(file);

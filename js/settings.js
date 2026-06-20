@@ -126,20 +126,20 @@ function pickImportJSON() {
 function clearTransactions() {
   const n = S.transactions.length;
   if (!n) { showToast('No transactions to delete','info'); return; }
-  if (!confirm(`Delete all ${n} transactions? Accounts, budgets and categories are kept. This cannot be undone.`)) return;
-  S.transactions = [];
-  // Auto-created savings vaults are derived from transactions — drop them so no stale balance lingers.
-  S.accounts = S.accounts.filter(a => !a.isVault);
-  saveState(); closeAllSheets(); _tabsInit={}; renderCurrentTab();
-  showToast(`Deleted ${n} transactions`,'success');
+  confirmDialog({title:`Delete all ${n} transactions?`, message:'Accounts, budgets and categories are kept. This cannot be undone.', confirmLabel:'Delete all', danger:true}, ()=>{
+    S.transactions = [];
+    // Auto-created savings vaults are derived from transactions — drop them so no stale balance lingers.
+    S.accounts = S.accounts.filter(a => !a.isVault);
+    saveState(); closeAllSheets(); _tabsInit={}; renderCurrentTab();
+    showToast(`Deleted ${n} transactions`,'success');
+  });
 }
 function clearAllData() {
-  const ans = prompt('Type DELETE to confirm clearing all data:');
-  if (ans==='DELETE') {
+  confirmDialog({title:'Clear all data?', message:'This permanently erases every account, transaction, budget and setting on this device. This cannot be undone.', confirmLabel:'Delete everything', danger:true}, ()=>{
     localStorage.removeItem(STORAGE_KEY);
     S=defaultState(); applyTheme(); closeAllSheets();
     _tabsInit={}; showOnboarding();
     showToast('All data cleared','success');
-  }
+  });
 }
 

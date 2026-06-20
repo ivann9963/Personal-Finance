@@ -65,6 +65,10 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
     - **No premature backup nagging**: `settings.createdAt` (stamped on first save) gives new users a grace period — `backupStatus()` is stale only after >14 days since last backup, or >3 days since first use if never backed up.
     - **Believable sample data**: supermarkets (Lidl/Aldi/Kaufland/Penny/Rewe) are now **Groceries** not Food, so the demo's analytics look right (Food dropped 44%→12%, Groceries is its own 29% slice) and showcase the category. Added a groceries budget.
     - **Expense sign consistency**: transaction rows show "−€X" (matching the day-total signs); income "+", transfers none.
+22. **Interaction fixes (weird UX)**:
+    - **Drag-to-reorder categories**: replaced the ↑/↓ buttons (which needed ~17 taps to move a category across the list) with proper drag-to-reorder — a ≡ handle, the lifted row follows the finger, others slide to open a gap (pointer events, `setupCatReorder()` in `categories.js`). Order feeds analytics + the tx-form pills.
+    - **Custom confirm dialog**: `confirmDialog()` (`ui-components.js`) — a centered modal above all sheets — replaced **all 7** native `confirm()`/`prompt()` calls (delete account/category/recurring, undo import, restore backup, delete-all-transactions, clear-all-data). Native dialogs showed the domain and broke immersion.
+    - **Emoji quick-pick grid** in the category editor (was a bare text field; now a grid matching the color-dot picker, with a text field for custom emoji). Fixed stale "N transactions will become Other" delete text (deletion now offers a reassign picker).
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).

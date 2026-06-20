@@ -289,6 +289,21 @@ input,select,textarea{font-family:inherit}
 .add-acc-btn:active{background:var(--bg-card)}
 
 /* Settings */
+.cat-emoji-grid{display:flex;flex-wrap:wrap;gap:8px}
+.cat-emoji-opt{width:40px;height:40px;border-radius:10px;background:var(--bg-input);font-size:20px;display:flex;align-items:center;justify-content:center;border:2px solid transparent;transition:border-color 150ms;touch-action:manipulation}
+.cat-emoji-opt.sel{border-color:var(--accent)}
+.confirm-overlay{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.6);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);opacity:0;transition:opacity 180ms}
+.confirm-overlay.open{opacity:1}
+.confirm-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px 20px;max-width:340px;width:100%;transform:scale(.92);opacity:0;transition:transform 200ms var(--ease-sheet),opacity 200ms}
+.confirm-overlay.open .confirm-card{transform:scale(1);opacity:1}
+.confirm-title{font-size:17px;font-weight:700;margin-bottom:6px}
+.confirm-msg{font-size:14px;color:var(--text-secondary);line-height:1.5;margin-bottom:18px}
+.confirm-actions{display:flex;gap:10px}
+.confirm-actions button{flex:1}
+.cat-row{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-card);transition:transform 160ms var(--ease-out)}
+.cat-drag-handle{width:36px;height:40px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);flex-shrink:0;cursor:grab;touch-action:none}
+.cat-drag-handle:active{cursor:grabbing}
+.cat-dragging{transition:none;position:relative;z-index:10;background:var(--bg-elevated);box-shadow:0 8px 28px rgba(0,0,0,.45);border-radius:var(--radius-sm);border-bottom-color:transparent}
 .settings-grp-title{font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.6px;padding:12px 16px 4px}
 .settings-row{display:flex;align-items:center;padding:14px 16px;gap:14px;cursor:pointer;transition:background 150ms;touch-action:manipulation}
 .settings-row:active{background:var(--bg-elevated)}

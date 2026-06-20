@@ -56,6 +56,32 @@ function closeAllSheets() {
   document.getElementById('backdrop2').classList.remove('visible');
   _sheetStack = [];
 }
+// Centered confirm modal — replaces native confirm()/prompt() for a consistent, non-jarring feel.
+// Has its own overlay above all sheets, so it works even when triggered from inside a sheet.
+// confirmDialog('Message', onConfirm) or confirmDialog({title,message,confirmLabel,cancelLabel,danger}, onConfirm)
+function confirmDialog(opts, onConfirm) {
+  const o = typeof opts === 'string' ? {message:opts} : (opts||{});
+  const { title='Are you sure?', message='', confirmLabel='Confirm', cancelLabel='Cancel', danger=false } = o;
+  const wrap = document.createElement('div');
+  wrap.className = 'confirm-overlay';
+  wrap.innerHTML = `
+    <div class="confirm-card" role="dialog" aria-modal="true">
+      <div class="confirm-title">${escHtml(title)}</div>
+      ${message?`<div class="confirm-msg">${escHtml(message)}</div>`:''}
+      <div class="confirm-actions">
+        <button class="btn-secondary" data-act="cancel">${escHtml(cancelLabel)}</button>
+        <button class="${danger?'btn-danger':'btn-primary'}" data-act="ok">${escHtml(confirmLabel)}</button>
+      </div>
+    </div>`;
+  document.getElementById('sheets').appendChild(wrap);
+  requestAnimationFrame(()=> wrap.classList.add('open'));
+  const close = ()=>{ wrap.classList.remove('open'); setTimeout(()=>wrap.remove(), 200); };
+  wrap.addEventListener('click', e => {
+    const act = e.target.dataset?.act;
+    if (e.target === wrap || act === 'cancel') close();
+    else if (act === 'ok') { close(); try { onConfirm && onConfirm(); } catch(err){ console.error(err); } }
+  });
+}
 function setupSheetSwipe(el, onClose) {
   let startY=0, curY=0, dragging=false;
   // Accept swipe-down from anywhere in the top 72px (handle + title) of the sheet

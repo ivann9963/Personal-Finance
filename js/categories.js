@@ -1,5 +1,6 @@
 // === CATEGORIES MANAGER ===
 const CAT_COLORS = ['#FF6B6B','#FF9F43','#F7DC6F','#3FB950','#4ECDC4','#45B7D1','#58A6FF','#A29BFE','#C39BD3','#FD79A8','#E17055','#FDCB6E','#00CEC9','#74B9FF','#96CEB4','#6C5CE7','#FFEAA7','#B2BEC3'];
+const CAT_EMOJIS = ['🍔','🛒','🚗','🏠','💊','🎬','🛍️','💼','💰','✈️','📱','🎓','🐾','🏋️','🎁','🏥','🍺','⚡','☕','🍷','⛽','🏦','📈','🎮','🎵','📚','🧾','🔧','🌳','🐶','🍎','💅','🎨','💡'];
 function openCategoriesManager() {
   openSheet('cat-manager', `
     <div class="sheet-handle"></div>
@@ -13,30 +14,71 @@ function renderCatList() {
   const rows = cats.map((c, i) => {
     const txCount = S.transactions.filter(t => t.category === c.id).length;
     const inUse = txCount > 0;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border)">
+    return `<div class="cat-row" data-id="${escHtml(c.id)}" data-idx="${i}">
+      <div class="cat-drag-handle" title="Drag to reorder">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/></svg>
+      </div>
       <div onclick="openCategoryEditor('${escHtml(c.id)}')" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer">
-        <div style="font-size:20px;width:32px;text-align:center;flex-shrink:0">${c.emoji}</div>
+        <div style="font-size:20px;width:28px;text-align:center;flex-shrink:0">${c.emoji}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:15px;font-weight:600">${escHtml(c.name)}</div>
-          <div style="font-size:11px;color:var(--text-tertiary)">${inUse?`${txCount} transaction${txCount!==1?'s':''} · `:''}Tap to edit</div>
+          <div style="font-size:11px;color:var(--text-tertiary)">${inUse?`${txCount} transaction${txCount!==1?'s':''}`:'Tap to edit'}</div>
         </div>
         <div class="legend-dot" style="width:12px;height:12px;background:${c.color};flex-shrink:0"></div>
       </div>
-      <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
-        <button onclick="moveCat(${i},-1)" style="width:32px;height:32px;border-radius:8px;background:var(--bg-elevated);color:var(--text-secondary);font-size:15px;display:flex;align-items:center;justify-content:center${i===0?';opacity:.25':''}" ${i===0?'disabled':''}>↑</button>
-        <button onclick="moveCat(${i},1)" style="width:32px;height:32px;border-radius:8px;background:var(--bg-elevated);color:var(--text-secondary);font-size:15px;display:flex;align-items:center;justify-content:center${i===cats.length-1?';opacity:.25':''}" ${i===cats.length-1?'disabled':''}>↓</button>
-      </div>
     </div>`;
   }).join('');
-  body.innerHTML = rows + `<div style="padding:16px"><button class="btn-primary" onclick="openCategoryEditor()">+ Add Category</button></div>`;
+  body.innerHTML = `<div style="font-size:11px;color:var(--text-tertiary);padding:8px 16px 4px">Drag the ≡ handle to reorder · tap a row to edit</div>`
+    + rows + `<div style="padding:16px"><button class="btn-primary" onclick="openCategoryEditor()">+ Add Category</button></div>`;
+  setupCatReorder();
 }
-function moveCat(index, dir) {
-  const cats = S.categories;
-  const ni = index + dir;
-  if (ni < 0 || ni >= cats.length) return;
-  [cats[index], cats[ni]] = [cats[ni], cats[index]];
-  saveState(); renderCatList(); invalidateOtherTabs(); // category order shows in analytics + tx form
-
+// Touch/mouse drag-to-reorder. While dragging, the lifted row follows the pointer and the
+// other rows slide to open a gap (pure transforms, no array mutation until drop).
+function setupCatReorder() {
+  const body = document.getElementById('cat-manager-body'); if (!body) return;
+  const rows = [...body.querySelectorAll('.cat-row')];
+  if (rows.length < 2) return;
+  const rowH = rows[0].offsetHeight || 56;
+  rows.forEach(row => {
+    const handle = row.querySelector('.cat-drag-handle'); if (!handle) return;
+    let startY = 0, startIdx = 0, targetIdx = 0, dragging = false;
+    const onMove = e => {
+      if (!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY);
+      const dy = y - startY;
+      row.style.transform = `translateY(${dy}px)`;
+      targetIdx = Math.max(0, Math.min(rows.length - 1, startIdx + Math.round(dy / rowH)));
+      rows.forEach((r, i) => {
+        if (r === row) return;
+        let shift = 0;
+        if (startIdx < targetIdx && i > startIdx && i <= targetIdx) shift = -rowH;
+        else if (startIdx > targetIdx && i >= targetIdx && i < startIdx) shift = rowH;
+        r.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      row.classList.remove('cat-dragging');
+      rows.forEach(r => { r.style.transform = ''; });
+      if (targetIdx !== startIdx) {
+        const [moved] = S.categories.splice(startIdx, 1);
+        S.categories.splice(targetIdx, 0, moved);
+        saveState(); invalidateOtherTabs(); // order shows in analytics + tx form
+      }
+      renderCatList(); // rebuild with fresh indices/handlers
+    };
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      dragging = true; startIdx = rows.indexOf(row); targetIdx = startIdx;
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      row.classList.add('cat-dragging');
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  });
 }
 // Unified add / edit editor. `id` (optional) = edit existing; `onSaved(catId)` = callback after save.
 function openCategoryEditor(id, onSaved) {
@@ -53,8 +95,9 @@ function openCategoryEditor(id, onSaved) {
     <div class="sheet-title">${editing ? 'Edit Category' : 'Add Category'}</div>
     <div class="sheet-body">
       <div class="form-field">
-        <label class="form-label">Emoji (optional)</label>
-        <input id="new-cat-emoji" class="form-input" type="text" placeholder="🏷️" value="${editing?escHtml(editing.emoji):''}" style="font-size:28px;text-align:center;height:60px">
+        <label class="form-label">Icon</label>
+        <div class="cat-emoji-grid">${CAT_EMOJIS.map(e=>`<button type="button" class="cat-emoji-opt${editing&&editing.emoji===e?' sel':''}" data-emoji="${e}" onclick="pickCatEmoji('${e}')">${e}</button>`).join('')}</div>
+        <input id="new-cat-emoji" class="form-input" type="text" placeholder="or type any emoji" value="${editing?escHtml(editing.emoji):''}" style="font-size:20px;text-align:center;height:48px;margin-top:8px">
       </div>
       <div class="form-field">
         <label class="form-label">Name</label>
@@ -66,8 +109,13 @@ function openCategoryEditor(id, onSaved) {
       </div>
       <div style="height:8px"></div>
       <button class="btn-primary" onclick="saveCategory()">${editing ? 'Save Changes' : 'Add Category'}</button>
-      ${editing ? `<div style="height:10px"></div><button class="btn-danger" onclick="deleteCatFromEditor('${escHtml(editing.id)}')">${txCount?`Delete (${txCount} transactions will become Other)`:'Delete Category'}</button>` : ''}
+      ${editing ? `<div style="height:10px"></div><button class="btn-danger" onclick="deleteCatFromEditor('${escHtml(editing.id)}')">Delete Category</button>` : ''}
     </div>`);
+}
+function pickCatEmoji(e) {
+  const inp = document.getElementById('new-cat-emoji');
+  if (inp) inp.value = e;
+  document.querySelectorAll('.cat-emoji-opt').forEach(b => b.classList.toggle('sel', b.dataset.emoji === e));
 }
 function pickNewCatColor(color) {
   window._newCatColor = color;
@@ -97,8 +145,7 @@ function saveCategory() {
 function deleteCatFromEditor(id) {
   const inUse = S.transactions.filter(t => t.category === id).length;
   if (!inUse) {
-    if (!confirm('Delete this category?')) return;
-    finalizeDeleteCategory(id, 'other');
+    confirmDialog({title:'Delete category?', confirmLabel:'Delete', danger:true}, ()=> finalizeDeleteCategory(id, 'other'));
     return;
   }
   // Category is in use — let the user choose where its transactions go (instead of always → Other).
