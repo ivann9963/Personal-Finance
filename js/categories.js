@@ -96,11 +96,32 @@ function saveCategory() {
 }
 function deleteCatFromEditor(id) {
   const inUse = S.transactions.filter(t => t.category === id).length;
-  if (inUse && !confirm(`Delete this category? ${inUse} transaction${inUse!==1?'s':''} will be moved to "Other".`)) return;
-  // Reassign any transactions to 'other' so nothing is orphaned
-  S.transactions.forEach(t => { if (t.category === id) t.category = 'other'; });
-  // Clean up any budget for this category
-  S.budgets = S.budgets.filter(b => b.category !== id);
+  if (!inUse) {
+    if (!confirm('Delete this category?')) return;
+    finalizeDeleteCategory(id, 'other');
+    return;
+  }
+  // Category is in use — let the user choose where its transactions go (instead of always → Other).
+  const sheet = document.getElementById('sheet2-add-cat');
+  if (!sheet) { finalizeDeleteCategory(id, 'other'); return; }
+  const opts = S.categories.filter(c => c.id !== id)
+    .map(c=>`<option value="${c.id}"${c.id==='other'?' selected':''}>${c.emoji} ${escHtml(c.name)}</option>`).join('');
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Delete category</div>
+    <div class="sheet-body">
+      <div style="font-size:14px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px">This category has <strong>${inUse}</strong> transaction${inUse!==1?'s':''}. Choose where to move ${inUse!==1?'them':'it'} before deleting.</div>
+      <div class="form-field"><label class="form-label">Move transactions to</label>
+        <select id="reassign-target" class="form-input">${opts}</select></div>
+      <div style="height:8px"></div>
+      <button class="btn-danger" onclick="finalizeDeleteCategory('${id}', document.getElementById('reassign-target').value)">Move &amp; Delete Category</button>
+      <div style="height:10px"></div>
+      <button class="btn-secondary" onclick="closeTopSheet2()">Cancel</button>
+    </div>`;
+}
+function finalizeDeleteCategory(id, targetId) {
+  S.transactions.forEach(t => { if (t.category === id) t.category = targetId; });
+  S.budgets = S.budgets.filter(b => b.category !== id); // drop any budget on the removed category
   S.categories = S.categories.filter(c => c.id !== id);
   saveState(); closeTopSheet2(); renderCatList(); renderCurrentTab();
   showToast('Category deleted', 'success');

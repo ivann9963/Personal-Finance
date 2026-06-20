@@ -20,6 +20,26 @@ function exportCSV() {
   showToast('CSV exported','success');
 }
 function csvCell(s) { return '"'+String(s).replace(/"/g,'""')+'"'; }
+// Remove every transaction from the most recent import batch (imports can be scary/irreversible).
+function undoLastImport() {
+  const li = S.lastImport;
+  const n = li && li.batch ? S.transactions.filter(t=>t.importBatch===li.batch).length : 0;
+  if (!n) { S.lastImport = null; showToast('Nothing to undo','info'); refreshSettingsIfOpen?.(); return; }
+  if (!confirm(`Undo last import?\nThis removes ${n} imported transaction${n!==1?'s':''}. Anything you added or edited yourself is kept.`)) return;
+  S.transactions = S.transactions.filter(t=>t.importBatch!==li.batch);
+  recomputeVaultBalances();
+  // Drop savings vaults this import auto-created that are now empty and hold no reconciled balance.
+  S.accounts = S.accounts.filter(a => {
+    if (!a.isVault) return true;
+    const stillUsed = S.transactions.some(t => t.savingsVault===a.vaultName || t.accountId===a.id || t.toAccountId===a.id);
+    return stillUsed || a.balance !== 0;
+  });
+  S.lastImport = null;
+  saveState();
+  refreshSettingsIfOpen?.();
+  renderCurrentTab();
+  showToast(`Removed ${n} imported transactions`,'success');
+}
 function dlBlob(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -429,6 +449,7 @@ function runCSVImport() {
     imported++;
   });
   recomputeVaultBalances();
+  if (imported>0) S.lastImport = {batch:batchId, count:imported, at:Date.now()}; // enables Undo last import
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));
   saveState(); closeTopSheet(); renderCurrentTab();
   const parts = [`Imported ${imported}`];

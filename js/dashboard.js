@@ -54,8 +54,18 @@ function renderDashboard() {
     : `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">💸</div><div class="empty-state-title">No transactions yet</div><div class="empty-state-desc">Tap + to add your first transaction</div></div>`;
   // ATH banner
   const showATH = !window.navigator.standalone && !localStorage.getItem('ath_dismissed');
+  // Stale-backup reminder — data lives only on this device, so nudge before it can be lost.
+  const bk = (typeof backupStatus === 'function') ? backupStatus() : {stale:false};
+  const snoozedAt = parseInt(localStorage.getItem('backup_reminder_snoozed')||'0', 10);
+  const showBackupNudge = bk.stale && (Date.now() - snoozedAt > 7*864e5);
   el.innerHTML = `
     <div style="height:8px"></div>
+    ${showBackupNudge?`<div class="ath-banner" style="background:var(--red-bg);border-color:var(--red)">
+      <div class="ath-text">⚠️ <strong>No recent backup</strong> — your data lives only on this device. Back it up so a lost phone or cleared browser can't erase it.
+        <button onclick="backupNowFromDashboard()" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:600;font-size:13px">Back Up Now →</button>
+      </div>
+      <button class="ath-dismiss" onclick="snoozeBackupReminder()">✕</button>
+    </div>`:''}
     ${showATH?`<div class="ath-banner"><div class="ath-text"><strong>Add to Home Screen</strong> for the best experience — no browser chrome, works offline.</div><button class="ath-dismiss" onclick="dismissATH()">✕</button></div>`:''}
     <div class="hero-card">
       <div class="hero-label">Net Worth</div>
@@ -83,6 +93,14 @@ function dismissInsight(id) {
 function dismissATH() {
   localStorage.setItem('ath_dismissed','1');
   document.querySelector('.ath-banner')?.remove();
+}
+function backupNowFromDashboard() {
+  exportJSON();        // records lastBackupAt → no longer stale
+  renderDashboard();   // drop the nudge now that we're backed up
+}
+function snoozeBackupReminder() {
+  localStorage.setItem('backup_reminder_snoozed', String(Date.now()));
+  renderDashboard();
 }
 function animateValue(elId, from, to, duration, fmt) {
   const el = document.getElementById(elId); if (!el) return;

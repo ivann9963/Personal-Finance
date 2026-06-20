@@ -34,6 +34,8 @@ function openSettings() {
   const themeLabel = {dark:'Dark',light:'Light',system:'System'}[S.settings.theme]||'Dark';
   const dcInfo = getCurInfo(S.settings.defaultCurrency);
   const hasTx = S.transactions.length > 0;
+  // Live count for "Undo last import" (some of the batch may since have been edited/deleted).
+  const lastImportCount = S.lastImport?.batch ? S.transactions.filter(t=>t.importBatch===S.lastImport.batch).length : 0;
   const bk = backupStatus();
   // Prominent backup card — the thing that protects the user's whole financial history.
   const backupCard = `
@@ -70,6 +72,7 @@ function openSettings() {
 
       <div class="settings-grp-title">Import &amp; Export</div>
       ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV)', 'Revolut, N26, Wise, Monzo…')}
+      ${lastImportCount ? settingsRow('undoLastImport()', '↩️', 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
       ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets')}
 
       <div class="settings-grp-title">Danger Zone</div>

@@ -55,10 +55,12 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 15. **Subscriptions hub** (Plan → new *Subscriptions* segment): headline monthly + annual total over all active recurring expenses, sorted by next charge date, "due soon" highlight, tap-to-edit. Fixed a real bug — the old mini-list summed amounts **without normalizing frequency** (a €120/yr sub counted as €120/mo). New `monthlyEquivalent()` normalizes every cadence; `recurringExpenseSchedules()`, `nextChargeDate()` added. Budgets view now shows a compact "recurring payments" teaser linking here.
 16. **Fixed confusing UI signals**: (a) budget cards no longer show a green "−41%" pill next to a maxed-red bar — the month-over-month trend moved to the footer as a neutral "↓41% vs last mo", leaving budget status as the only colored signal; (b) the **Net Worth sparkline now actually renders** — `mkSparkline()` was missing `labels`, so Chart.js drew nothing (the hero card looked empty); (c) "Week starts on" is now a proper Monday/Sunday picker instead of an ambiguous toggle.
 17. **Smarter onboarding**: welcome step carries a "🔒 your data is stored only on this device — back it up" note; final step offers three real paths — **Import from my bank (CSV)** (creates a starter account if needed, then opens the importer), Load sample data, or Start fresh. `showOnboarding()` now hides the FAB (fixes overlap when re-entered via Clear All Data).
+18. **Stale-backup reminder**: the dashboard shows a red "No recent backup" banner (with Back Up Now + dismiss) when `backupStatus().stale` and not snoozed in the last 7 days. Reuses the ATH-banner style; `backupNowFromDashboard()` / `snoozeBackupReminder()` in `dashboard.js`.
+19. **Undo last import**: `runCSVImport()` records `S.lastImport = {batch,count,at}`; Settings → Import & Export shows "Undo last import (N)" which removes that batch's transactions, recomputes vault balances, and drops any now-empty auto-created savings vaults. Your own (non-imported) transactions are untouched.
+20. **Reassign-on-delete category**: deleting a category that's in use now opens an in-place picker to choose where its transactions move (default Other), instead of silently dumping everything into Other. `finalizeDeleteCategory(id,target)` does the move + cleanup.
 
 ## Known limitations / what's left
-- **Reassign-on-delete** always sends a deleted category's transactions to "Other" (no pick-target).
-- **No cloud sync / backup-by-default** — data is per-device. Backup/restore is now front-and-center in Settings with a staleness reminder, but it's still manual (no automatic/scheduled backup).
+- **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).
 - **"Subscriptions" includes all recurring expenses** (rent, utilities, not just streaming) — useful as a total-commitment view, but the label may surprise users who expect only subscriptions.
 - **Round-up automation** for *manually-added* transactions (Revolut-style "round to nearest €1 into a vault") is not built — only imported round-ups are tracked.
 - **Merchant keyword rules** are a seed list; long-tail/local merchants rely on the learning system (categorize once → remembered).
@@ -66,9 +68,8 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 - **Tests** cover the import/data logic well; UI flows are verified manually via Playwright scripts (not committed) — no automated UI test suite.
 
 ## Possible next steps (ideas, unprioritized)
-- Reassign-on-delete: pick target category when deleting a category (instead of always → Other).
 - Round-up automation toggle for new transactions.
-- CSV import: remember column mapping per bank; import history / undo-last-import (transactions already tagged with `importBatch`).
+- CSV import: remember column mapping per bank; full import history (multiple undo levels — currently only the last batch).
 - Optional cloud backup/sync (or scheduled local-backup reminder/prompt).
 - Maybe split "Subscriptions" into true subscriptions vs. bills/rent, or rename to "Recurring".
 
