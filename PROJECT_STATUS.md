@@ -69,6 +69,8 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
     - **Drag-to-reorder categories**: replaced the ↑/↓ buttons (which needed ~17 taps to move a category across the list) with proper drag-to-reorder — a ≡ handle, the lifted row follows the finger, others slide to open a gap (pointer events, `setupCatReorder()` in `categories.js`). Order feeds analytics + the tx-form pills.
     - **Custom confirm dialog**: `confirmDialog()` (`ui-components.js`) — a centered modal above all sheets — replaced **all 7** native `confirm()`/`prompt()` calls (delete account/category/recurring, undo import, restore backup, delete-all-transactions, clear-all-data). Native dialogs showed the domain and broke immersion.
     - **Emoji quick-pick grid** in the category editor (was a bare text field; now a grid matching the color-dot picker, with a text field for custom emoji). Fixed stale "N transactions will become Other" delete text (deletion now offers a reassign picker).
+23. **Recurring expenses made discoverable**: previously the only way to add a recurring expense was to toggle "Recurring" deep in the tx form. Added `openAddRecurring()` (opens the tx form pre-set to a recurring expense — toggle on, frequency visible; `openAddTxSheet` honors `prefill.recurring`) and **"+ Add recurring payment"** buttons in **Plan → Subscriptions** (populated + empty) and **Settings → Recurring & Subscriptions** (populated + empty). Tracking lives in the Subscriptions hub (total/month + next charge).
+24. **Reorder Analytics sections** (in progress — see Possible next steps): let users drag the Analytics cards into their preferred order.
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).
@@ -79,6 +81,13 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 - **Tests** cover the import/data logic well; UI flows are verified manually via Playwright scripts (not committed) — no automated UI test suite.
 
 ## Possible next steps (ideas, unprioritized)
+**Analytics customization** (requested 2026-06-20; building "reorder sections" first, rest are TODO):
+- [in progress] **Reorder Analytics sections** — drag Heatmap / Spending Trend / Category Breakdown / Top Merchants / Income-vs-Expense into a custom order (persisted in `settings.analyticsOrder`).
+- [todo] **Use my category order in Analytics** — option to make the Heatmap + Category Breakdown follow the user's custom category order (from Settings drag-reorder) instead of sorting by amount.
+- [todo] **Per-section sort menu** — let each list sort by amount / name / number of transactions.
+- [todo] **Show/hide (pin) categories** in the Heatmap + Breakdown.
+
+**Other:**
 - Round-up automation toggle for new transactions.
 - CSV import: remember column mapping per bank; full import history (multiple undo levels — currently only the last batch).
 - Optional cloud backup/sync (or scheduled local-backup reminder/prompt).
