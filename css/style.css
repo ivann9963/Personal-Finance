@@ -18,6 +18,7 @@ input,select,textarea{font-family:inherit}
   --nav-height:56px;--header-height:52px;
   --spring:cubic-bezier(.34,1.56,.64,1);
   --ease-out:cubic-bezier(.25,.46,.45,.94);
+  --ease-sheet:cubic-bezier(.32,.72,0,1);
   --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -83,7 +84,7 @@ input,select,textarea{font-family:inherit}
 .backdrop.visible{opacity:1;pointer-events:all}
 
 /* Sheets */
-.sheet{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--bg-card);border-radius:var(--radius-xl) var(--radius-xl) 0 0;z-index:1000;transform:translateY(102%);transition:transform 350ms var(--spring);will-change:transform;max-height:92vh;display:flex;flex-direction:column}
+.sheet{position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:var(--bg-card);border-radius:var(--radius-xl) var(--radius-xl) 0 0;z-index:1000;transform:translateY(102%);transition:transform 380ms var(--ease-sheet);will-change:transform;max-height:92vh;display:flex;flex-direction:column}
 .sheet.open{transform:translateY(0)}
 .sheet-handle{width:36px;height:4px;background:var(--text-tertiary);opacity:.35;border-radius:3px;margin:0 auto;flex-shrink:0;padding:14px 48px;box-sizing:content-box;background-clip:content-box;cursor:grab}
 .sheet-title{font-size:18px;font-weight:700;padding:16px 20px 4px;color:var(--text-primary);flex-shrink:0}

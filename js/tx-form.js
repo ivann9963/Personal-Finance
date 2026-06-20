@@ -45,7 +45,7 @@ function buildTxSheet(prefill={}, isUpdate=false) {
       </div>
       <div class="amt-wrap">
         <button class="amt-cur-btn" onclick="openCurrencyPicker('${_txForm.currency}',setTxCurrency)">${curInfo.symbol} <span style="font-size:12px;opacity:.7">${_txForm.currency}</span></button>
-        <input id="tx-amount" class="amt-input ${_txForm.type}" type="text" inputmode="decimal" placeholder="0.00" value="${prefill.originalAmount?(prefill.originalAmount/100).toFixed(2):''}" autofocus>
+        <input id="tx-amount" class="amt-input ${_txForm.type}" type="text" inputmode="decimal" placeholder="0.00" value="${prefill.originalAmount?(prefill.originalAmount/100).toFixed(2):''}">
       </div>
       ${showRate?`<div class="rate-row">Rate: 1 ${_txForm.currency} = <input id="tx-rate" class="rate-input" type="number" inputmode="decimal" placeholder="…" value="${escHtml(String(rateVal))}"> ${dc}</div>`:''}
       ${!isTransfer?`<div class="form-field"><label class="form-label">Category</label>

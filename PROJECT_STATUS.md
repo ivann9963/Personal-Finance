@@ -81,6 +81,7 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 - Maybe split "Subscriptions" into true subscriptions vs. bills/rent, or rename to "Recurring".
 
 ## Gotchas to remember
+- **Animation easing:** `--spring` (cubic-bezier(.34,1.56,.64,1)) *overshoots* — only use it on small elements (FAB, toggle knob, nav icon, toast). Never on edge-anchored surfaces: bottom sheets used it and the overshoot lifted the sheet ~80px off the bottom edge mid-open, flashing the background (looked awful). Sheets now use `--ease-sheet` (cubic-bezier(.32,.72,0,1), no overshoot). Verify motion by sampling `getBoundingClientRect()` over time — screenshots can't catch it.
 - Service worker is now network-first; if testing offline behavior, account for that.
 - After deploying, the **old installed PWA** needs one clean reload (or remove/re-add to Home Screen) to adopt the new service worker.
 - `localStorage` ~5MB limit; app warns near 4MB on save.
