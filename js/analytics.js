@@ -1,4 +1,86 @@
 // === ANALYTICS ===
+const ANALYTICS_SECTIONS = [
+  {id:'heatmap',   label:'Spending Heatmap',  emoji:'📊'},
+  {id:'trend',     label:'Spending Trend',    emoji:'📈'},
+  {id:'breakdown', label:'Category Breakdown',emoji:'🍩'},
+  {id:'merchants', label:'Top Merchants',     emoji:'🏪'},
+  {id:'incexp',    label:'Income vs Expense', emoji:'💵'},
+];
+// User's saved section order (settings.analyticsOrder), with any new/missing sections appended.
+function currentAnalyticsOrder() {
+  const def = ANALYTICS_SECTIONS.map(s=>s.id);
+  const order = (S.settings.analyticsOrder||[]).filter(id => def.includes(id));
+  def.forEach(id => { if (!order.includes(id)) order.push(id); });
+  return order;
+}
+// Reorder sheet: a simple uniform-row drag list (reuses the .cat-row drag pattern + CSS).
+function openAnalyticsLayout() {
+  const rows = currentAnalyticsOrder().map((id,i) => {
+    const s = ANALYTICS_SECTIONS.find(x=>x.id===id); if (!s) return '';
+    return `<div class="cat-row" data-id="${id}" data-idx="${i}">
+      <div class="cat-drag-handle" title="Drag to reorder"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/></svg></div>
+      <div style="flex:1;display:flex;align-items:center;gap:10px"><span style="font-size:18px">${s.emoji}</span><span style="font-weight:600;font-size:15px">${escHtml(s.label)}</span></div>
+    </div>`;
+  }).join('');
+  openSheet('analytics-layout', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Reorder sections</div>
+    <div class="sheet-body" style="padding:0" id="analytics-layout-body">
+      <div style="font-size:12px;color:var(--text-tertiary);padding:8px 16px">Drag the ≡ handle to set the order of your Analytics cards.</div>
+      ${rows}
+      <div style="padding:16px"><button class="btn-primary" onclick="closeTopSheet()">Done</button></div>
+    </div>`);
+  setupSectionReorder();
+}
+function setupSectionReorder() {
+  const body = document.getElementById('analytics-layout-body'); if (!body) return;
+  const rows = [...body.querySelectorAll('.cat-row')];
+  if (rows.length < 2) return;
+  const rowH = rows[0].offsetHeight || 56;
+  rows.forEach(row => {
+    const handle = row.querySelector('.cat-drag-handle'); if (!handle) return;
+    let startY=0, startIdx=0, targetIdx=0, dragging=false;
+    const onMove = e => {
+      if (!dragging) return;
+      const y = e.touches ? e.touches[0].clientY : e.clientY;
+      const dy = y - startY;
+      row.style.transform = `translateY(${dy}px)`;
+      targetIdx = Math.max(0, Math.min(rows.length-1, startIdx + Math.round(dy/rowH)));
+      rows.forEach((r,i) => {
+        if (r===row) return;
+        let sh = 0;
+        if (startIdx<targetIdx && i>startIdx && i<=targetIdx) sh = -rowH;
+        else if (startIdx>targetIdx && i>=targetIdx && i<startIdx) sh = rowH;
+        r.style.transform = sh ? `translateY(${sh}px)` : '';
+      });
+    };
+    const onUp = () => {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      row.classList.remove('cat-dragging');
+      rows.forEach(r => { r.style.transform = ''; });
+      if (targetIdx !== startIdx) {
+        const order = currentAnalyticsOrder();
+        const [m] = order.splice(startIdx, 1);
+        order.splice(targetIdx, 0, m);
+        S.settings.analyticsOrder = order;
+        saveState();
+        openAnalyticsLayout();      // rebuild the sheet with fresh order/indices
+        renderAnalyticsContent();   // re-render the page underneath in the new order
+      }
+    };
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      dragging = true; startIdx = rows.indexOf(row); targetIdx = startIdx;
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      row.classList.add('cat-dragging');
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  });
+}
 function getDateRange(range) {
   const now = new Date();
   const end = new Date(now); end.setHours(23,59,59,999);
@@ -32,6 +114,12 @@ function renderAnalytics() {
   el.innerHTML = `
     <div class="range-sel">
       ${ranges.map(r=>`<button class="range-btn${_analyticsRange===r?' active':''}" onclick="setAnalyticsRange('${r}')">${r}</button>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:0 16px 2px">
+      <button onclick="openAnalyticsLayout()" style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:5px;padding:4px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 9 12 5 16 9"/><polyline points="8 15 12 19 16 15"/></svg>
+        Reorder sections
+      </button>
     </div>
     <div id="analytics-content"></div>`;
   renderAnalyticsContent();
@@ -136,32 +224,34 @@ function renderAnalyticsContent() {
     expData.push(expTxs.filter(t=>t.date.startsWith(m)).reduce((s,t)=>s+t.convertedAmount,0));
   });
 
-  el.innerHTML = `
-    <div class="analytics-sec">
+  // Each section's HTML, keyed by id, so they can be emitted in the user's saved order.
+  const sections = {
+    heatmap: `<div class="analytics-sec" data-sec="heatmap">
       <div class="analytics-sec-title">📊 Spending Heatmap</div>
       ${activeCats.length ? `<div class="chart-box"><div class="heatmap-outer">${hmHtml}</div></div>` : `<div class="chart-box" style="color:var(--text-secondary);font-size:14px;padding:24px;text-align:center">No expense data in this range</div>`}
-    </div>
-    <div class="analytics-sec">
+    </div>`,
+    trend: `<div class="analytics-sec" data-sec="trend">
       <div class="analytics-sec-title">📈 Spending Trend</div>
       <div class="chart-box"><div class="chart-inner"><canvas id="trend-chart"></canvas></div>
       <div class="chart-insight-txt">${escHtml(trendInsight)}</div></div>
-    </div>
-    <div class="analytics-sec">
+    </div>`,
+    breakdown: `<div class="analytics-sec" data-sec="breakdown">
       <div class="analytics-sec-title">🍩 Category Breakdown</div>
       <div class="chart-box">
         ${catEntries.length?`<div class="chart-inner"><canvas id="cat-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Total Spent</div><div class="donut-center-amt">${formatCurrency(catTotal,dc,true)}</div></div></div><div>${catRows}</div>`:
           `<div style="color:var(--text-secondary);font-size:14px;text-align:center;padding:16px">No data</div>`}
       </div>
-    </div>
-    <div class="analytics-sec">
+    </div>`,
+    merchants: `<div class="analytics-sec" data-sec="merchants">
       <div class="analytics-sec-title">🏪 Top Merchants</div>
       <div class="chart-box">${topMers.length?merRows:`<div style="color:var(--text-secondary);font-size:14px;text-align:center;padding:16px">No data</div>`}</div>
-    </div>
-    ${hasIncome?`<div class="analytics-sec">
+    </div>`,
+    incexp: hasIncome?`<div class="analytics-sec" data-sec="incexp">
       <div class="analytics-sec-title">💵 Income vs Expense</div>
       <div class="chart-box"><div class="chart-inner"><canvas id="inc-exp-chart"></canvas></div></div>
-    </div>`:''}
-    <div style="height:16px"></div>`;
+    </div>`:''
+  };
+  el.innerHTML = currentAnalyticsOrder().map(id => sections[id]||'').join('') + `<div style="height:16px"></div>`;
 
   requestAnimationFrame(()=>{
     // Guard: tab may have been switched before rAF fires
