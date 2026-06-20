@@ -10,10 +10,15 @@ function openAddTxSheet(prefill={}) {
     currency: prefill.originalCurrency||S.settings.defaultCurrency,
     accountId: prefill.accountId||firstAccId,
     toAccountId: prefill.toAccountId||secondAccId,
-    recurring: false,
+    recurring: prefill.recurring || false,
     editId: prefill.id||null
   };
   buildTxSheet(prefill);
+}
+// Direct entry point for "add a recurring payment" — opens the tx form already in recurring mode.
+// (openSheet replaces any open primary sheet, so this works from the recurring manager too.)
+function openAddRecurring() {
+  openAddTxSheet({type:'expense', recurring:true});
 }
 function openEditTxSheet(id) {
   const tx = S.transactions.find(t=>t.id===id); if (!tx) return;

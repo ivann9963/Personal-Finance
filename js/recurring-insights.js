@@ -57,9 +57,10 @@ function renderRecurringList() {
   const schs = S.recurringSchedules;
   if (!schs.length) {
     body.innerHTML = `<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🔄</div>
-      <div class="empty-state-title">No recurring transactions</div>
-      <div class="empty-state-desc">Toggle "Recurring" when adding a transaction to track subscriptions, rent, salary and more — or set up automatic savings below.</div></div>
-      <div style="padding:0 16px 16px"><button class="btn-primary" onclick="openSavingsContribution()">+ Automatic savings contribution</button></div>`;
+      <div class="empty-state-title">No recurring payments yet</div>
+      <div class="empty-state-desc">Track subscriptions, rent, bills and salary that repeat on a schedule. Add one below — or toggle "Recurring" when adding any transaction.</div></div>
+      <div style="padding:0 16px 12px"><button class="btn-primary" onclick="openAddRecurring()">+ Add recurring payment</button></div>
+      <div style="padding:0 16px 16px"><button class="btn-secondary" onclick="openSavingsContribution()">🐷 Automatic savings contribution</button></div>`;
     return;
   }
   const rows = schs.map(r => {
@@ -84,7 +85,8 @@ function renderRecurringList() {
     </div>`;
   }).join('');
   body.innerHTML = rows + `
-    <div style="padding:16px"><button class="btn-secondary" onclick="openSavingsContribution()">+ Automatic savings contribution</button></div>
+    <div style="padding:16px 16px 8px"><button class="btn-primary" onclick="openAddRecurring()">+ Add recurring payment</button></div>
+    <div style="padding:0 16px 16px"><button class="btn-secondary" onclick="openSavingsContribution()">🐷 Automatic savings contribution</button></div>
     <div style="padding:0 16px 16px;font-size:12px;color:var(--text-tertiary);line-height:1.5">Pausing stops future auto-generated entries. Deleting also removes the schedule — already-recorded transactions are kept.</div>`;
 }
 // Set up an automatic, recurring transfer into a savings vault (e.g. "€50 to Emergency Fund every month").

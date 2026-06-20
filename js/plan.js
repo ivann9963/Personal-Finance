@@ -127,8 +127,8 @@ function renderSubscriptions(el) {
     el.innerHTML = `<div class="empty-state">
       <div style="font-size:40px;margin-bottom:12px">🔁</div>
       <div class="empty-state-title">No recurring payments yet</div>
-      <div class="empty-state-desc">When you add a transaction, flip on <strong>Recurring</strong> to track subscriptions, rent and bills here — with your total monthly commitment and what's due next.</div>
-      <button class="empty-state-btn" onclick="openAddTxSheet()">Add Transaction</button>
+      <div class="empty-state-desc">Track subscriptions, rent and bills that repeat — see your total monthly commitment and what's due next.</div>
+      <button class="empty-state-btn" onclick="openAddRecurring()">+ Add recurring payment</button>
     </div>`;
     return;
   }
@@ -161,7 +161,8 @@ function renderSubscriptions(el) {
       <div class="sub-annual-lbl">per month · ${formatCurrency(totalMonthly*12,dc)} per year · ${subs.length} active</div>
     </div>
     ${rows}
-    <div style="padding:16px;text-align:center">
+    <button class="add-acc-btn" style="margin:14px 16px 0" onclick="openAddRecurring()">+ Add recurring payment</button>
+    <div style="padding:12px 16px 0;text-align:center">
       <button class="see-all-btn" style="font-size:13px;color:var(--accent);font-weight:600" onclick="openRecurringManager()">Manage all recurring →</button>
     </div>
     <div style="height:16px"></div>`;
