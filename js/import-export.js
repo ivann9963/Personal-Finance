@@ -370,11 +370,25 @@ function getOrCreateVaultAccount(vaultName, currency) {
   }
   return acc;
 }
-// Net of deposits (in) − withdrawals (out) for a vault, from its tagged transactions.
+// Net of deposits (in) − withdrawals (out) for a vault. Two sources feed a vault:
+//   1. Imported / round-up flows tagged with `savingsVault` + `savingsFlow`.
+//   2. Manual account-to-account transfers whose source/destination IS this vault's account.
+// Both are summed here so the vault balance has a single source of truth (opening + flows)
+// and never gets clobbered when balances are recomputed after an import.
 function vaultNetFlows(vaultName) {
-  return S.transactions
-    .filter(t => t.savingsVault === vaultName)
-    .reduce((s,t) => s + (t.savingsFlow === 'out' ? -t.originalAmount : t.originalAmount), 0);
+  const acc = S.accounts.find(a => a.isVault && a.vaultName === vaultName);
+  const toVaultCur = (cents, cur) =>
+    acc && cur && cur !== acc.currency ? Math.round(cents * (getRate(cur, acc.currency) || 1)) : cents;
+  return S.transactions.reduce((s, t) => {
+    if (t.savingsVault === vaultName) {
+      return s + (t.savingsFlow === 'out' ? -t.originalAmount : t.originalAmount);
+    }
+    if (acc && t.type === 'transfer' && t.toAccountId) { // a manual transfer (has an explicit destination)
+      if (t.toAccountId === acc.id) return s + toVaultCur(t.originalAmount, t.originalCurrency); // money in
+      if (t.accountId   === acc.id) return s - toVaultCur(t.originalAmount, t.originalCurrency); // money out
+    }
+    return s;
+  }, 0);
 }
 // Vault balance = opening balance (manual reconciliation point) + net of its tagged flows.
 function recomputeVaultBalances() {

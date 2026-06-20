@@ -212,12 +212,12 @@ function saveBudget(lockedCat) {
   const existing = S.budgets.findIndex(b=>b.category===cat);
   const bud = {id:gid(),category:cat,amount:Math.round(amt*100),currency:S.settings.defaultCurrency};
   if (existing>=0) S.budgets[existing]=bud; else S.budgets.push(bud);
-  saveState(); closeTopSheet(); renderPlanContent();
+  saveState(); closeTopSheet(); renderPlanContent(); invalidateOtherTabs(); // budgets feed dashboard insights
   showToast('Budget saved','success');
 }
 function deleteBudget(cat) {
   S.budgets = S.budgets.filter(b=>b.category!==cat);
-  saveState(); closeTopSheet(); renderPlanContent();
+  saveState(); closeTopSheet(); renderPlanContent(); invalidateOtherTabs(); // budgets feed dashboard insights
   showToast('Budget deleted','success');
 }
 

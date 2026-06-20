@@ -37,8 +37,16 @@ function renderTab(tab) {
     case 'accounts':     renderAccounts(); break;
   }
 }
+// Mark every tab *except* the current one as needing a fresh render on next visit.
+// Call this after any mutation to shared state (accounts, budgets, categories, …) that
+// already updated the visible view itself, so the off-screen tabs don't show stale data.
+function invalidateOtherTabs() {
+  Object.keys(_tabsInit).forEach(t => { if(t!==_currentTab) delete _tabsInit[t]; });
+}
+// Re-render the visible tab AND invalidate the rest. Use for mutations where the simplest
+// correct thing is to fully re-render where you are.
 function renderCurrentTab() {
   renderTab(_currentTab);
-  Object.keys(_tabsInit).forEach(t => { if(t!==_currentTab) delete _tabsInit[t]; });
+  invalidateOtherTabs();
 }
 

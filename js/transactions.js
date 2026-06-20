@@ -80,6 +80,17 @@ function txRowHTML(tx) {
   const dc = S.settings.defaultCurrency;
   const showConv = tx.originalCurrency !== dc;
   const sign = tx.type==='income'?'+':'';
+  const isTransfer = tx.type === 'transfer';
+  const fromAcc = isTransfer ? S.accounts.find(a=>a.id===tx.accountId) : null;
+  const toAcc   = isTransfer ? S.accounts.find(a=>a.id===tx.toAccountId) : null;
+  const iconHtml = isTransfer
+    ? `<div class="tx-cat-icon" style="background:var(--accent-bg);font-size:18px">⇄</div>`
+    : `<div class="tx-cat-icon" style="background:${ci.color}22">${ci.emoji}</div>`;
+  const metaHtml = isTransfer
+    ? `<span class="tx-cat-tag">${escHtml(fromAcc?.name||'?')} → ${escHtml(toAcc?.name||'?')}</span>`
+    : `<span class="tx-cat-tag">${escHtml(ci.name)}</span>
+       ${showConv?`<span class="tx-cur-badge">${tx.originalCurrency}</span>`:''}
+       ${tx.isRecurring?`<span class="tx-cur-badge" style="background:var(--accent-bg);color:var(--accent)">↻</span>`:''}`;
   return `<div class="tx-row-wrap">
     <div class="tx-swipe-btns">
       <button class="tx-swipe-btn edit-btn" onclick="openEditTxSheet('${tx.id}')">
@@ -92,18 +103,14 @@ function txRowHTML(tx) {
       </button>
     </div>
     <div class="tx-row" data-txid="${tx.id}" onclick="openTxDetail('${tx.id}')">
-      <div class="tx-cat-icon" style="background:${ci.color}22">${ci.emoji}</div>
+      ${iconHtml}
       <div class="tx-info">
         <div class="tx-merchant">${escHtml(tx.merchant)}</div>
-        <div class="tx-meta">
-          <span class="tx-cat-tag">${escHtml(ci.name)}</span>
-          ${showConv?`<span class="tx-cur-badge">${tx.originalCurrency}</span>`:''}
-          ${tx.isRecurring?`<span class="tx-cur-badge" style="background:var(--accent-bg);color:var(--accent)">↻</span>`:''}
-        </div>
+        <div class="tx-meta">${metaHtml}</div>
       </div>
       <div class="tx-amounts">
-        <div class="tx-amt ${tx.type==='transfer'?'':tx.type}">${sign}${formatCurrency(tx.originalAmount, tx.originalCurrency)}</div>
-        ${showConv?`<div class="tx-amt-sub">${sign}${formatCurrency(tx.convertedAmount,dc)}</div>`:''}
+        <div class="tx-amt ${isTransfer?'':tx.type}">${sign}${formatCurrency(tx.originalAmount, tx.originalCurrency)}</div>
+        ${showConv&&!isTransfer?`<div class="tx-amt-sub">${sign}${formatCurrency(tx.convertedAmount,dc)}</div>`:''}
       </div>
     </div>
   </div>`;
@@ -160,10 +167,15 @@ function setupPTR(container) {
 }
 function deleteTx(id) {
   resetSwipe(_activeSwipeRow);
+  const tx = S.transactions.find(t=>t.id===id);
   const wrap = document.querySelector(`[data-txid="${id}"]`)?.closest('.tx-row-wrap');
   if (wrap) wrap.classList.add('tx-sliding-out');
   setTimeout(()=>{
     S.transactions = S.transactions.filter(t=>t.id!==id);
+    if (tx?.type==='transfer' && tx.toAccountId) {
+      applyTransferBalances(tx, true);   // reverse the non-vault side
+      recomputeVaultBalances();          // re-derive any vault side from the now-updated list
+    }
     saveState(); renderCurrentTab();
     showToast('Transaction deleted','success');
   }, 280);
@@ -172,6 +184,10 @@ function duplicateTx(id) {
   const tx = S.transactions.find(t=>t.id===id); if (!tx) return;
   const copy = {...tx, id:gid(), date:new Date().toISOString().slice(0,10), isRecurring:false, recurringId:undefined};
   S.transactions.unshift(copy);
+  if (copy.type==='transfer' && copy.toAccountId) {
+    applyTransferBalances(copy, false);
+    recomputeVaultBalances();
+  }
   saveState(); renderCurrentTab();
   showToast('Transaction duplicated','success');
 }

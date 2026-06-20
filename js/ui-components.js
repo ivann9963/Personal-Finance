@@ -191,28 +191,33 @@ function openHeatmapDetail(catId, monthStr) {
 function openTxDetail(txId) {
   const tx = S.transactions.find(t=>t.id===txId); if (!tx) return;
   const ci = getCatInfo(tx.category);
-  const acc = S.accounts.find(a=>a.id===tx.accountId);
+  const acc   = S.accounts.find(a=>a.id===tx.accountId);
+  const toAcc = tx.toAccountId ? S.accounts.find(a=>a.id===tx.toAccountId) : null;
   const dc = S.settings.defaultCurrency;
   const showConverted = tx.originalCurrency !== dc;
+  const isTransfer = tx.type === 'transfer';
+  const amtSign = isTransfer ? '' : tx.type==='expense' ? '-' : '+';
   openSheet('tx-detail', `
     <div class="sheet-handle"></div>
     <div class="sheet-body" style="padding-top:16px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-        <div class="tx-cat-icon" style="background:${ci.color}22;font-size:28px;width:56px;height:56px">${ci.emoji}</div>
+        <div class="tx-cat-icon" style="background:${isTransfer?'var(--accent-bg)':ci.color+'22'};font-size:28px;width:56px;height:56px">${isTransfer?'⇄':ci.emoji}</div>
         <div>
           <div style="font-size:20px;font-weight:700">${escHtml(tx.merchant)}</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">${escHtml(ci.name)}</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">${isTransfer?escHtml((acc?.name||'?')+' → '+(toAcc?.name||'?')):escHtml(ci.name)}</div>
         </div>
         <div style="margin-left:auto;text-align:right">
-          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums" class="${tx.type==='expense'?'text-red':'text-green'}">
-            ${tx.type==='expense'?'-':'+'}${formatCurrency(tx.originalAmount, tx.originalCurrency)}
+          <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums" class="${isTransfer?'':tx.type==='expense'?'text-red':'text-green'}">
+            ${amtSign}${formatCurrency(tx.originalAmount, tx.originalCurrency)}
           </div>
-          ${showConverted?`<div style="font-size:12px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace">${formatCurrency(tx.convertedAmount,dc)}</div>`:''}
+          ${showConverted?`<div style="font-size:12px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace">${amtSign}${formatCurrency(tx.convertedAmount,dc)}</div>`:''}
         </div>
       </div>
       <div class="full-divider" style="margin-bottom:16px"></div>
       ${detailRow('Date', formatDate(tx.date,{weekday:'long',month:'long',day:'numeric',year:'numeric'}))}
-      ${detailRow('Account', acc?.name||'Unknown')}
+      ${isTransfer
+        ? detailRow('From', acc?.name||'Unknown') + detailRow('To', toAcc?.name||'Unknown')
+        : detailRow('Account', acc?.name||'Unknown')}
       ${detailRow('Type', tx.type.charAt(0).toUpperCase()+tx.type.slice(1))}
       ${showConverted?detailRow('Exchange Rate', tx.exchangeRate?.toFixed(4)||'—'):''}
       ${tx.note?detailRow('Note', tx.note):''}

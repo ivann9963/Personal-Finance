@@ -1,11 +1,15 @@
 // === ADD / EDIT TRANSACTION SHEET ===
-let _txForm = {type:'expense', category:'food', currency:null, accountId:null, recurring:false};
+let _txForm = {type:'expense', category:'food', currency:null, accountId:null, toAccountId:null, recurring:false};
+
 function openAddTxSheet(prefill={}) {
+  const firstAccId  = S.accounts[0]?.id || '';
+  const secondAccId = S.accounts.find(a=>a.id !== (prefill.accountId||firstAccId))?.id || firstAccId;
   _txForm = {
     type: prefill.type||'expense',
     category: prefill.category||'food',
     currency: prefill.originalCurrency||S.settings.defaultCurrency,
-    accountId: prefill.accountId||(S.accounts[0]?.id||''),
+    accountId: prefill.accountId||firstAccId,
+    toAccountId: prefill.toAccountId||secondAccId,
     recurring: false,
     editId: prefill.id||null
   };
@@ -18,7 +22,9 @@ function openEditTxSheet(id) {
 function buildTxSheet(prefill={}, isUpdate=false) {
   const dc = S.settings.defaultCurrency;
   const curInfo = getCurInfo(_txForm.currency);
-  const accOpts = S.accounts.map(a=>`<option value="${a.id}"${_txForm.accountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
+  const isTransfer = _txForm.type === 'transfer';
+  const accOpts   = S.accounts.map(a=>`<option value="${a.id}"${_txForm.accountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
+  const toAccOpts = S.accounts.map(a=>`<option value="${a.id}"${_txForm.toAccountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
   const catPills = S.categories.map(c=>`
     <div class="cat-pill${_txForm.category===c.id?' sel':''}" data-catid="${c.id}" onclick="selectTxCat('${c.id}')">
       <div class="cat-pill-emoji">${c.emoji}</div>
@@ -42,12 +48,23 @@ function buildTxSheet(prefill={}, isUpdate=false) {
         <input id="tx-amount" class="amt-input ${_txForm.type}" type="text" inputmode="decimal" placeholder="0.00" value="${prefill.originalAmount?(prefill.originalAmount/100).toFixed(2):''}" autofocus>
       </div>
       ${showRate?`<div class="rate-row">Rate: 1 ${_txForm.currency} = <input id="tx-rate" class="rate-input" type="number" inputmode="decimal" placeholder="…" value="${escHtml(String(rateVal))}"> ${dc}</div>`:''}
-      <div class="form-field"><label class="form-label">Category</label>
-        <div class="cat-scroll">${catPills}</div></div>
-      <div class="form-field"><label class="form-label">Merchant / Description</label>
-        <input id="tx-merchant" class="form-input" type="text" placeholder="e.g. Lidl" autocomplete="off" value="${escHtml(prefill.merchant||'')}" list="merchant-list">
-        <datalist id="merchant-list">${[...new Set(S.transactions.map(t=>t.merchant))].map(m=>`<option value="${escHtml(m)}">`).join('')}</datalist>
+      ${!isTransfer?`<div class="form-field"><label class="form-label">Category</label>
+        <div class="cat-scroll">${catPills}</div></div>`:''}
+      <div class="form-field"><label class="form-label">${isTransfer?'Description (optional)':'Merchant / Description'}</label>
+        <input id="tx-merchant" class="form-input" type="text" placeholder="${isTransfer?'e.g. Monthly savings':'e.g. Lidl'}" autocomplete="off" value="${escHtml(prefill.merchant||'')}"${!isTransfer?' list="merchant-list"':''}>
+        ${!isTransfer?`<datalist id="merchant-list">${[...new Set(S.transactions.map(t=>t.merchant))].map(m=>`<option value="${escHtml(m)}">`).join('')}</datalist>`:''}
       </div>
+      ${isTransfer?`
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Date</label>
+          <input id="tx-date" class="form-input" type="date" value="${prefill.date||new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      ${S.accounts.length<2
+        ? `<div style="background:var(--bg-elevated);border-radius:var(--radius);padding:14px;font-size:13px;color:var(--text-secondary);line-height:1.4">💡 You need at least two accounts to move money between them. Add another account first.</div>`
+        : `<div class="form-row">
+        <div class="form-field"><label class="form-label">From</label><select id="tx-account" class="form-input">${accOpts}</select></div>
+        <div class="form-field"><label class="form-label">To</label><select id="tx-to-account" class="form-input">${toAccOpts}</select></div>
+      </div>`}`:`
       <div class="form-row">
         <div class="form-field"><label class="form-label">Date</label>
           <input id="tx-date" class="form-input" type="date" value="${prefill.date||new Date().toISOString().slice(0,10)}"></div>
@@ -63,7 +80,7 @@ function buildTxSheet(prefill={}, isUpdate=false) {
             <option value="daily">Daily</option><option value="weekly">Weekly</option>
             <option value="biweekly">Biweekly</option><option value="monthly" selected>Monthly</option>
             <option value="yearly">Yearly</option>
-          </select></div></div>`:''}
+          </select></div></div>`:''}`}
       <div class="form-field"><label class="form-label">Note (optional)</label>
         <input id="tx-note" class="form-input" type="text" placeholder="Add a note…" value="${escHtml(prefill.note||'')}"></div>
     </div>
@@ -81,7 +98,13 @@ function buildTxSheet(prefill={}, isUpdate=false) {
   openSheet(_txForm.editId?'edit-tx':'add-tx', content);
   setTimeout(()=>document.getElementById('tx-amount')?.focus(), 400);
 }
-function setTxType(type) { _txForm.type=type; buildTxSheet(collectTxFormValues(), true); }
+function setTxType(type) {
+  _txForm.type = type;
+  if (type === 'transfer' && !_txForm.toAccountId) {
+    _txForm.toAccountId = S.accounts.find(a=>a.id!==_txForm.accountId)?.id || S.accounts[0]?.id || '';
+  }
+  buildTxSheet(collectTxFormValues(), true);
+}
 function setTxCurrency(code) { _txForm.currency=code; buildTxSheet(collectTxFormValues(), true); }
 function selectTxCat(id) {
   _txForm.category = id;
@@ -99,6 +122,8 @@ function addTxCategoryInline() {
 function toggleRecurring() { _txForm.recurring=!_txForm.recurring; buildTxSheet(collectTxFormValues(), true); }
 function collectTxFormValues() {
   const rawAmt = (document.getElementById('tx-amount')?.value||'').replace(/,/g,'');
+  const toAccId = document.getElementById('tx-to-account')?.value;
+  if (toAccId) _txForm.toAccountId = toAccId; // keep in sync for rebuilds
   return {
     originalAmount: parseFloat(rawAmt)*100 || undefined,
     originalCurrency: _txForm.currency,
@@ -106,6 +131,7 @@ function collectTxFormValues() {
     date: document.getElementById('tx-date')?.value||new Date().toISOString().slice(0,10),
     note: document.getElementById('tx-note')?.value||'',
     accountId: document.getElementById('tx-account')?.value||_txForm.accountId,
+    toAccountId: toAccId || _txForm.toAccountId,
     id: _txForm.editId
   };
 }
@@ -115,9 +141,15 @@ function saveTx() {
   const date = document.getElementById('tx-date')?.value;
   const note = document.getElementById('tx-note')?.value?.trim()||'';
   const accountId = document.getElementById('tx-account')?.value||S.accounts[0]?.id||'';
+  const toAccountId = document.getElementById('tx-to-account')?.value||'';
   const rateInput = document.getElementById('tx-rate');
+  const isTransfer = _txForm.type === 'transfer';
   if (!amtStr || isNaN(parseFloat(amtStr)) || parseFloat(amtStr)<=0) { showToast('Enter an amount','error'); return; }
-  if (!merchant) { showToast('Enter a merchant','error'); return; }
+  if (!isTransfer && !merchant) { showToast('Enter a merchant','error'); return; }
+  if (isTransfer) {
+    if (!accountId || !toAccountId) { showToast('Select both accounts','error'); return; }
+    if (accountId === toAccountId) { showToast('Source and destination must be different','error'); return; }
+  }
   const cents = Math.round(parseFloat(amtStr)*100);
   const dc = S.settings.defaultCurrency;
   let rate=1, convertedAmount=cents;
@@ -137,17 +169,29 @@ function saveTx() {
     id: _txForm.editId||gid(), type:_txForm.type,
     originalAmount:cents, originalCurrency:_txForm.currency,
     convertedAmount, exchangeRate:rate,
-    category:_txForm.category, merchant, accountId, date, note
+    category: isTransfer ? 'other' : _txForm.category,
+    merchant: isTransfer ? (merchant||'Transfer') : merchant,
+    accountId, date, note,
+    ...(isTransfer && {toAccountId})
   };
+  let wasTransfer = false;
   if (_txForm.editId) {
     const idx=S.transactions.findIndex(t=>t.id===_txForm.editId);
-    if (idx>=0) S.transactions[idx]=tx;
+    if (idx>=0) {
+      const oldTx = S.transactions[idx];
+      wasTransfer = oldTx.type==='transfer' && !!oldTx.toAccountId;
+      if (wasTransfer) applyTransferBalances(oldTx, true);
+      S.transactions[idx]=tx;
+    }
   } else {
     S.transactions.unshift(tx);
   }
-  if (tx.type !== 'transfer') learnMerchantCategory(merchant, tx.category); // remember merchant -> category
-  // Recurring schedule
-  if (_txForm.recurring && !_txForm.editId) {
+  if (isTransfer) applyTransferBalances(tx, false);
+  // Keep derived vault balances in sync whenever a transfer is involved (either side may be a vault).
+  if (isTransfer || wasTransfer) recomputeVaultBalances();
+  if (!isTransfer) learnMerchantCategory(merchant, tx.category);
+  // Recurring schedule (not for transfers)
+  if (!isTransfer && _txForm.recurring && !_txForm.editId) {
     const freq = document.getElementById('tx-freq')?.value||'monthly';
     S.recurringSchedules.push({id:gid(), type:tx.type, amount:cents, currency:_txForm.currency,
       convertedAmount, exchangeRate:rate, category:_txForm.category, merchant, accountId,
@@ -157,7 +201,6 @@ function saveTx() {
   S.transactions.sort((a,b)=>b.date.localeCompare(a.date));
   saveState(); closeTopSheet(); renderCurrentTab();
   showToast(`Transaction ${_txForm.editId?'updated':'added'}`,'success');
-  // Flash
   setTimeout(()=>{
     const row = document.querySelector(`[data-txid="${tx.id}"]`);
     if (row) row.classList.add(tx.type==='income'?'flash-green':'flash-red');

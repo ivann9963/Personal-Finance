@@ -68,6 +68,7 @@ function renderRecurringList() {
     let next = r.startDate;
     while (next <= tod) next = getNextOccurrence(next, r.frequency);
     const sign = r.type==='income' ? '+' : '-';
+    const btnBase = 'width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0';
     return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);${r.active?'':'opacity:.5'}">
       <div class="tx-cat-icon" style="background:${ci.color}22">${ci.emoji}</div>
       <div style="flex:1;min-width:0">
@@ -76,8 +77,9 @@ function renderRecurringList() {
       </div>
       <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px;color:${r.type==='income'?'var(--green)':'var(--red)'}">${sign}${formatCurrency(r.amount,r.currency)}</div>
       <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="toggleRecurringActive('${r.id}')" title="${r.active?'Pause':'Resume'}" style="width:34px;height:34px;border-radius:8px;background:var(--bg-elevated);color:var(--text-secondary);display:flex;align-items:center;justify-content:center">${r.active?'⏸':'▶'}</button>
-        <button onclick="deleteRecurringSchedule('${r.id}')" title="Delete" style="width:34px;height:34px;border-radius:8px;background:var(--red-bg);color:var(--red);display:flex;align-items:center;justify-content:center">✕</button>
+        <button onclick="openEditRecurringSheet('${r.id}')" title="Edit" style="${btnBase};background:var(--bg-elevated);color:var(--text-secondary)">✎</button>
+        <button onclick="toggleRecurringActive('${r.id}')" title="${r.active?'Pause':'Resume'}" style="${btnBase};background:var(--bg-elevated);color:var(--text-secondary)">${r.active?'⏸':'▶'}</button>
+        <button onclick="deleteRecurringSchedule('${r.id}')" title="Delete" style="${btnBase};background:var(--red-bg);color:var(--red)">✕</button>
       </div>
     </div>`;
   }).join('');
@@ -142,6 +144,67 @@ function deleteRecurringSchedule(id) {
   S.recurringSchedules = S.recurringSchedules.filter(s => s.id !== id);
   saveState(); renderRecurringList(); renderCurrentTab();
   showToast('Recurring schedule deleted', 'success');
+}
+function openEditRecurringSheet(id) {
+  const r = S.recurringSchedules.find(s=>s.id===id); if (!r) return;
+  const curOpts = CURRENCIES.map(c=>`<option value="${c.code}"${r.currency===c.code?' selected':''}>${c.code}</option>`).join('');
+  const catPills = S.categories.map(c=>`
+    <div class="cat-pill${r.category===c.id?' sel':''}" data-catid="${c.id}" onclick="selectRecurringCat('${c.id}')">
+      <div class="cat-pill-emoji">${c.emoji}</div>
+      <div class="cat-pill-name">${escHtml(c.name)}</div>
+    </div>`).join('');
+  openSheet('edit-recurring', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Edit Recurring</div>
+    <div class="sheet-body">
+      <div class="form-field"><label class="form-label">Merchant / Description</label>
+        <input id="rec-merchant" class="form-input" type="text" value="${escHtml(r.merchant)}"></div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Amount</label>
+          <input id="rec-amount" class="form-input mono" type="number" inputmode="decimal" value="${(r.amount/100).toFixed(2)}"></div>
+        <div class="form-field"><label class="form-label">Currency</label>
+          <select id="rec-currency" class="form-input">${curOpts}</select></div>
+      </div>
+      <div class="form-field"><label class="form-label">Frequency</label>
+        <select id="rec-freq" class="form-input">
+          <option value="daily"${r.frequency==='daily'?' selected':''}>Daily</option>
+          <option value="weekly"${r.frequency==='weekly'?' selected':''}>Weekly</option>
+          <option value="biweekly"${r.frequency==='biweekly'?' selected':''}>Biweekly</option>
+          <option value="monthly"${r.frequency==='monthly'?' selected':''}>Monthly</option>
+          <option value="yearly"${r.frequency==='yearly'?' selected':''}>Yearly</option>
+        </select></div>
+      <div class="form-field"><label class="form-label">Category</label>
+        <div class="cat-scroll">${catPills}</div>
+        <input id="rec-cat" type="hidden" value="${r.category}"></div>
+      <div style="height:8px"></div>
+      <button class="btn-primary" onclick="saveRecurringSchedule('${id}')">Save Changes</button>
+    </div>`);
+}
+function selectRecurringCat(id) {
+  document.getElementById('rec-cat').value = id;
+  document.querySelectorAll('#sheet-edit-recurring .cat-pill').forEach(p => {
+    p.classList.toggle('sel', p.dataset.catid === id);
+  });
+}
+function saveRecurringSchedule(id) {
+  const r = S.recurringSchedules.find(s=>s.id===id); if (!r) return;
+  const merchant = (document.getElementById('rec-merchant')?.value||'').trim();
+  const amtStr   = document.getElementById('rec-amount')?.value||'';
+  const currency = document.getElementById('rec-currency')?.value || r.currency;
+  const frequency= document.getElementById('rec-freq')?.value || r.frequency;
+  const category = document.getElementById('rec-cat')?.value   || r.category;
+  if (!merchant) { showToast('Enter a merchant','error'); return; }
+  if (!amtStr || isNaN(parseFloat(amtStr)) || parseFloat(amtStr)<=0) { showToast('Enter an amount','error'); return; }
+  const cents = Math.round(parseFloat(amtStr)*100);
+  const conv  = defaultConvert(cents, currency);
+  // Drop future auto-generated entries so they regenerate with the new values
+  const today = new Date().toISOString().slice(0,10);
+  S.transactions = S.transactions.filter(t => !(t.recurringId===id && t.date>=today && t.isRecurring));
+  Object.assign(r, {merchant, amount:cents, currency, frequency, category,
+    convertedAmount: conv.ok?conv.amount:cents, exchangeRate: conv.rate||1});
+  generateRecurring();
+  saveState(); closeTopSheet(); renderRecurringList(); renderCurrentTab();
+  showToast('Recurring schedule updated','success');
 }
 
 // === INSIGHTS ENGINE ===

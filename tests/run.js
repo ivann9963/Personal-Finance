@@ -196,6 +196,33 @@ suite('vault balances — flows + opening reconciliation', () => {
   check('stays reconciled after new flow', acc.balance, 3500);
 });
 
+suite('vault balances — manual transfers survive recompute', () => {
+  // A manual account-to-account transfer into a vault must be counted as a flow, so the vault
+  // balance is not clobbered when recomputeVaultBalances() runs (e.g. after a later CSV import).
+  freshState({
+    accounts: [
+      { id:'chk', name:'Checking', type:'checking', currency:'EUR', balance:100000 },
+      { id:'v1', name:'Reserves Fund', type:'savings', isVault:true, vaultName:'Reserves Fund', currency:'EUR', balance:0, openingBalance:0 },
+    ],
+    transactions: [
+      { id:'t1', type:'transfer', accountId:'chk', toAccountId:'v1', originalAmount:5000, originalCurrency:'EUR' },
+    ],
+  });
+  check('transfer into vault counts as flow', app.vaultNetFlows('Reserves Fund'), 5000);
+  app.recomputeVaultBalances();
+  check('vault balance survives recompute', app.getState().accounts[1].balance, 5000);
+
+  // A withdrawal back out of the vault nets against it.
+  app.getState().transactions.push({ id:'t2', type:'transfer', accountId:'v1', toAccountId:'chk', originalAmount:2000, originalCurrency:'EUR' });
+  app.recomputeVaultBalances();
+  check('withdrawal nets out', app.getState().accounts[1].balance, 3000);
+
+  // Imported savings flows and manual transfers coexist without double-counting.
+  app.getState().transactions.push({ id:'t3', savingsVault:'Reserves Fund', savingsFlow:'in', originalAmount:1000 });
+  app.recomputeVaultBalances();
+  check('tagged + transfer flows combine', app.getState().accounts[1].balance, 4000);
+});
+
 suite('learnMerchantCategory — guards', () => {
   freshState();
   app.learnMerchantCategory('Local Bakery', 'food');

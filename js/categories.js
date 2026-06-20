@@ -35,7 +35,8 @@ function moveCat(index, dir) {
   const ni = index + dir;
   if (ni < 0 || ni >= cats.length) return;
   [cats[index], cats[ni]] = [cats[ni], cats[index]];
-  saveState(); renderCatList();
+  saveState(); renderCatList(); invalidateOtherTabs(); // category order shows in analytics + tx form
+
 }
 // Unified add / edit editor. `id` (optional) = edit existing; `onSaved(catId)` = callback after save.
 function openCategoryEditor(id, onSaved) {

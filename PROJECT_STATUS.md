@@ -1,6 +1,6 @@
 # Project Status — Finance PWA
 
-_Last updated: 2026-06-15. Snapshot for picking the project back up after a break._
+_Last updated: 2026-06-20. Snapshot for picking the project back up after a break._
 
 Live app: **https://ivann9963.github.io/Personal-Finance/**
 Repo: **https://github.com/ivann9963/Personal-Finance**
@@ -47,22 +47,22 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 7. **Savings vaults** modeled as accounts (Reserves Fund, Savings Vault, …): deposits/withdrawals routed there, round-ups tagged, balance in Net Worth; **editable balance reconciliation** (set real balance, survives imports); **automatic recurring contributions**
 8. **Critical CRUD added:** edit categories (rename/emoji/color), inline add-category from tx form, recurring/subscriptions manager (pause/delete), budget edit/delete, "Delete all transactions"
 9. Fixes: edit sheet closing instantly; analytics range-selector highlight; service-worker update strategy
+10. **Account-to-account transfers**: Transfer type shows From/To account selectors (with a "need 2 accounts" guard), hides categories, and moves money between accounts on save/edit/delete/duplicate. `applyTransferBalances()` (in `accounts.js`) adjusts **non-vault** balances with currency conversion; **vault** endpoints are derived, so transfers into/out of a vault are counted by `vaultNetFlows()` and applied via `recomputeVaultBalances()` — this keeps a transfer from being silently wiped on the next import. Destination accounts also list incoming transfers in their ledger.
+11. **Savings goals**: Any account can have a `goalAmount`; account cards show a mini progress bar; the detail sheet shows a full goal block with amount remaining / reached callout.
+12. **Edit recurring schedules**: Each schedule in the recurring manager now has an Edit (✎) button. Opens a sheet to change merchant, amount, currency, frequency, and category. Future auto-generated entries are dropped and regenerated with the new values; past transactions are preserved.
+13. **Cross-tab reactivity fixes**: every mutation now keeps *all* views fresh, not just the visible one. Split `invalidateOtherTabs()` out of `renderCurrentTab()` (`routing.js`) and wired it into the mutations that previously only re-rendered their own view: **account add/edit/delete** (dashboard net worth + insights were going stale), **budget add/delete** (dashboard insights), and **category reorder** (order shown in analytics + tx form). Adding an expense/transfer already propagated; these were the gaps. Verified each path re-invalidates the right tabs.
 
 ## Known limitations / what's left
-- **Transfers between your own accounts**: the `transfer` type exists but the tx form doesn't let you pick a *destination* account / move money between two of your accounts.
 - **Reassign-on-delete** always sends a deleted category's transactions to "Other" (no pick-target).
 - **No cloud sync / backup-by-default** — data is per-device. JSON export/import exists in Settings; consider reminding users to back up.
 - **Round-up automation** for *manually-added* transactions (Revolut-style "round to nearest €1 into a vault") is not built — only imported round-ups are tracked.
-- **Editing a recurring schedule's amount/merchant** isn't possible (only pause/resume/delete + recreate).
 - **Merchant keyword rules** are a seed list; long-tail/local merchants rely on the learning system (categorize once → remembered).
 - **No multi-currency net-worth nuance** beyond manual exchange rates entered on transactions.
 - **Tests** cover the import/data logic well; UI flows are verified manually via Playwright scripts (not committed) — no automated UI test suite.
 
 ## Possible next steps (ideas, unprioritized)
-- Account-to-account transfer UI (pick source + destination).
-- Savings goals / progress bars per vault; savings summary view.
+- Reassign-on-delete: pick target category when deleting a category (instead of always → Other).
 - Round-up automation toggle for new transactions.
-- Edit recurring schedule details.
 - Onboarding note clarifying "your data stays on your device".
 - CSV import: remember column mapping per bank; import history / undo-last-import (transactions already tagged with `importBatch`).
 - Optional cloud backup/sync.
