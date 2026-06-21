@@ -10,6 +10,12 @@ Repo: **https://github.com/ivann9963/Personal-Finance**
 ## What this is
 A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, **no build step, no backend, no framework**. All data lives in the browser's `localStorage` (key `financeapp_v1`); each device/person has their own private data. Charting via Chart.js (CDN).
 
+## ⚠️ Before declaring anything "done" — run the smoke test
+Unit tests cover logic only; they will NOT catch DOM/interaction/animation regressions (a button
+overlay once broke CSV import + all button taps while 91 tests stayed green). **Always run
+`tests/SMOKE.md`** (unit tests + the in-browser smoke that must return `errorCount: 0` + the
+interaction spot-checks) and leave the tree clean & pushed. If you can't verify, say so.
+
 ## Run / test / deploy
 - **Run locally:** `python3 -m http.server 8000` → open http://localhost:8000
 - **Tests:** `node tests/run.js` (dependency-free Node harness, currently **91 passing**)
@@ -82,6 +88,8 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
     - **What we did:** **confirmed working on device** (user felt the + tick). Generalized via `enableHaptics(root)` + `initHaptics()` (`ui-components.js`): overlays an invisible native `.haptic-overlay` switch on `.nav-tab, .btn-primary, .btn-danger, .btn-secondary, .seg-btn, .range-btn, .type-seg-btn`. The tap's click **bubbles to the control so its existing `onclick` still fires once** (no double-fire, verified count=1) and the physical toggle makes iOS tick. A **MutationObserver** on `#sheets`/`#main` auto-attaches overlays to dynamically-rendered buttons. The FAB keeps its own `#fab-switch` (div+onchange). Keep `opacity:0`, never `appearance:none`. The "rich variable haptics everywhere (success/error/impact)" path is still a native wrapper (Capacitor → `UIImpactFeedbackGenerator`).
 
 27. **Transaction tags** (inspired by the open-source app *Flow*): any transaction can carry freeform tags on top of its category. Added in the tx form (comma-separated input with a `<datalist>` of existing tags); stored as `tx.tags` (array, only when non-empty) via `parseTags()` (`data.js`, strips `#`, trims, de-dupes). Tags render as inline chips on transaction rows and as tappable chips in the detail sheet; tapping one filters the list (`filterByTag()` → `_txFilter='tag:<t>'`), and search/`renderTxList` now matches tags too. Verified: save/parse/dedupe, row + detail display, tag filter, and search.
+
+28. **Regression fix + ship safeguard** (2026-06-21): the button haptic overlay from #26 broke **CSV import** (overlay hijacked the file-picker `<label>`) and **button taps on iOS** (the nested switch didn't bubble a click to fire `onclick`). Fixed `enableHaptics()`: skip `<label>`/`<a>`/input-wrappers, and fire the control's action explicitly via `el.click()` on the switch's `change` (+`stopPropagation` to avoid double-fire). Haptics still work (verified single-fire); import works again. Added **`tests/SMOKE.md`** — the pre-ship checklist (unit tests + paste-in browser smoke that must hit `errorCount:0` + interaction spot-checks) so logic-passing-but-runtime-broken regressions get caught before shipping.
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).
