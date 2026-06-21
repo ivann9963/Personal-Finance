@@ -127,6 +127,33 @@ function haptic(kind='light') {
     navigator.vibrate(typeof kind === 'string' ? (HAPTIC[kind] ?? HAPTIC.light) : kind);
   } catch(e) {}
 }
+// Overlay an invisible native <input switch> on tappable controls so the finger physically
+// toggles it → real iOS haptic tick. The click bubbles to the control, so its existing onclick
+// still runs once (no double-fire, no JS forwarding). Idempotent via data-haptic.
+const HAPTIC_TARGETS = '.nav-tab,.btn-primary,.btn-danger,.btn-secondary,.seg-btn,.range-btn,.type-seg-btn';
+function enableHaptics(root) {
+  if (!root || !root.querySelectorAll) return; // allow document (nodeType 9) as well as elements
+  const list = (root.matches && root.matches(HAPTIC_TARGETS)) ? [root, ...root.querySelectorAll(HAPTIC_TARGETS)] : [...root.querySelectorAll(HAPTIC_TARGETS)];
+  list.forEach(el => {
+    if (el.dataset.haptic) return;
+    el.dataset.haptic = '1';
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    if (!el.style.overflow) el.style.overflow = 'hidden';
+    const sw = document.createElement('input');
+    sw.type = 'checkbox'; sw.setAttribute('switch',''); sw.className = 'haptic-overlay';
+    sw.setAttribute('aria-hidden','true'); sw.tabIndex = -1;
+    el.appendChild(sw);
+  });
+}
+let _hapticObserver = null;
+function initHaptics() {
+  enableHaptics(document);
+  if (_hapticObserver || typeof MutationObserver === 'undefined') return;
+  _hapticObserver = new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.addedNodes) if (n.nodeType === 1) enableHaptics(n);
+  });
+  ['sheets','main'].forEach(id => { const el = document.getElementById(id); if (el) _hapticObserver.observe(el, {childList:true, subtree:true}); });
+}
 function showToast(msg, type='info', duration=3000) {
   haptic(type==='error'?'error':type==='warning'?'warning':type==='success'?'success':'light'); // feedback on most actions flows through here
   const div = document.createElement('div');

@@ -45,5 +45,6 @@ function init() {
     document.getElementById('fab').classList.remove('hidden');
     renderDashboard(); _tabsInit['dashboard']=true;
   }
+  if (typeof initHaptics === 'function') initHaptics(); // overlay haptic switches on nav tabs + buttons (+ watch for new ones)
 }
 init();
