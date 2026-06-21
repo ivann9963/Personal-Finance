@@ -136,12 +136,19 @@ function enableHaptics(root) {
   const list = (root.matches && root.matches(HAPTIC_TARGETS)) ? [root, ...root.querySelectorAll(HAPTIC_TARGETS)] : [...root.querySelectorAll(HAPTIC_TARGETS)];
   list.forEach(el => {
     if (el.dataset.haptic) return;
+    // Never overlay a control whose native behavior a switch would hijack: <label>/<a>, or anything
+    // wrapping its own interactive element (e.g. the CSV "Choose File" label around a file input).
+    if (el.tagName === 'LABEL' || el.tagName === 'A' || el.querySelector('input,select,textarea,label,a')) return;
     el.dataset.haptic = '1';
     if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
     if (!el.style.overflow) el.style.overflow = 'hidden';
     const sw = document.createElement('input');
     sw.type = 'checkbox'; sw.setAttribute('switch',''); sw.className = 'haptic-overlay';
     sw.setAttribute('aria-hidden','true'); sw.tabIndex = -1;
+    // Fire the control's real action EXPLICITLY (bubbling the click from the switch is unreliable on
+    // iOS, which broke buttons), and stop the switch's own click bubbling so it can't double-trigger.
+    sw.addEventListener('click', e => e.stopPropagation());
+    sw.addEventListener('change', () => { haptic('light'); el.click(); });
     el.appendChild(sw);
   });
 }
