@@ -72,9 +72,13 @@
   </nav>
 </div>
 
-<button class="fab hidden" id="fab" onclick="openAddTxSheet()">
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-</button>
+<!-- FAB: the visible button is decoration; an invisible native <input switch> overlays it so the
+     finger physically toggles it → iOS plays a real haptic tick (the only method that survives iOS 26.5).
+     On Android, haptic() uses navigator.vibrate. onchange fires on every tap (toggle on/off). -->
+<div class="fab hidden" id="fab">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="pointer-events:none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  <input type="checkbox" switch id="fab-switch" aria-label="Add transaction" onchange="haptic('light');openAddTxSheet()">
+</div>
 
 <div class="backdrop" id="backdrop" style="z-index:900" onclick="closeTopSheet()"></div>
 <div class="backdrop" id="backdrop2" style="z-index:1100" onclick="closeTopSheet2()"></div>
