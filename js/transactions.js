@@ -22,19 +22,23 @@ function renderTransactions() {
 function setTxFilter(f) { _txDateFilter=null; _txFilter=f; _txPage=1; renderTransactions(); } // tapping a chip = fresh manual filter, all dates
 function setTxSearch(v) { _txSearch=v; _txPage=1; renderTxList(); }
 function clearTxDrill() { _txFilter='all'; _txSearch=''; _txDateFilter=null; _txPage=1; renderTransactions(); }
+function filterByTag(tag) { _txFilter='tag:'+tag; _txSearch=''; _txDateFilter=null; _txPage=1; switchTab('transactions'); _tabsInit['transactions']=true; renderTransactions(); }
 function renderTxList() {
   const body = document.getElementById('tx-list-body'); if (!body) return;
   let txs = [...S.transactions];
   // Filter
   const catFilterId = _txFilter.startsWith('cat:') ? _txFilter.slice(4) : null;
+  const tagFilterId = _txFilter.startsWith('tag:') ? _txFilter.slice(4) : null;
   if (catFilterId) txs=txs.filter(t=>t.category===catFilterId);
+  else if (tagFilterId) txs=txs.filter(t=>(t.tags||[]).some(tg=>tg.toLowerCase()===tagFilterId.toLowerCase()));
   else if (_txFilter==='expense'||_txFilter==='income'||_txFilter==='transfer') txs=txs.filter(t=>t.type===_txFilter);
   else if (_txFilter!=='all') txs=txs.filter(t=>t.accountId===_txFilter);
-  // Search
+  // Search (matches merchant, note, tags, category name)
   if (_txSearch) {
     const q = _txSearch.toLowerCase();
     txs = txs.filter(t => t.merchant.toLowerCase().includes(q)||
       (t.note||'').toLowerCase().includes(q)||
+      (t.tags||[]).some(tg=>tg.toLowerCase().includes(q))||
       (getCatInfo(t.category).name||'').toLowerCase().includes(q));
   }
   // Date range (set by drill-downs like Analytics so the list matches the selected period)
@@ -46,10 +50,11 @@ function renderTxList() {
   txs.forEach(t => { (groups[t.date]=groups[t.date]||[]).push(t); });
   const days = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
   const dc = S.settings.defaultCurrency;
-  const drillActive = catFilterId || _txDateFilter;
+  const drillActive = catFilterId || tagFilterId || _txDateFilter;
   const filterBanner = drillActive ? (() => {
     const bits = [];
     if (catFilterId) { const ci = getCatInfo(catFilterId); bits.push(`${ci.emoji} ${escHtml(ci.name)}`); }
+    else if (tagFilterId) bits.push(`#${escHtml(tagFilterId)}`);
     else if (_txSearch) bits.push(`“${escHtml(_txSearch)}”`);
     if (_txDateFilter) bits.push(escHtml(_txDateFilter.label));
     return `<div class="filter-banner">${bits.join(' · ')} · ${total} ${total===1?'transaction':'transactions'}<button onclick="clearTxDrill()">✕ Clear</button></div>`;
@@ -113,7 +118,7 @@ function txRowHTML(tx) {
       ${iconHtml}
       <div class="tx-info">
         <div class="tx-merchant">${escHtml(tx.merchant)}</div>
-        <div class="tx-meta">${metaHtml}</div>
+        <div class="tx-meta">${metaHtml}${(tx.tags||[]).slice(0,3).map(tg=>`<span class="tx-tag">#${escHtml(tg)}</span>`).join('')}</div>
       </div>
       <div class="tx-amounts">
         <div class="tx-amt ${isTransfer?'':tx.type}">${sign}${formatCurrency(tx.originalAmount, tx.originalCurrency)}</div>

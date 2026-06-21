@@ -88,6 +88,10 @@ function buildTxSheet(prefill={}, isUpdate=false) {
           </select></div></div>`:''}`}
       <div class="form-field"><label class="form-label">Note (optional)</label>
         <input id="tx-note" class="form-input" type="text" placeholder="Add a note…" value="${escHtml(prefill.note||'')}"></div>
+      <div class="form-field"><label class="form-label">Tags (optional)</label>
+        <input id="tx-tags" class="form-input" type="text" placeholder="e.g. holiday, work" value="${escHtml((prefill.tags||[]).join(', '))}" list="tag-list" autocomplete="off">
+        <datalist id="tag-list">${[...new Set(S.transactions.flatMap(t=>t.tags||[]))].map(t=>`<option value="${escHtml(t)}">`).join('')}</datalist>
+      </div>
     </div>
     <div class="sheet-footer">
       <button class="btn-primary" onclick="saveTx()">${_txForm.editId?'Update':'Add Transaction'}</button>
@@ -135,6 +139,7 @@ function collectTxFormValues() {
     merchant: document.getElementById('tx-merchant')?.value||'',
     date: document.getElementById('tx-date')?.value||new Date().toISOString().slice(0,10),
     note: document.getElementById('tx-note')?.value||'',
+    tags: parseTags(document.getElementById('tx-tags')?.value||''),
     accountId: document.getElementById('tx-account')?.value||_txForm.accountId,
     toAccountId: toAccId || _txForm.toAccountId,
     id: _txForm.editId
@@ -145,6 +150,7 @@ function saveTx() {
   const merchant = document.getElementById('tx-merchant')?.value?.trim()||'';
   const date = document.getElementById('tx-date')?.value;
   const note = document.getElementById('tx-note')?.value?.trim()||'';
+  const tags = parseTags(document.getElementById('tx-tags')?.value||'');
   const accountId = document.getElementById('tx-account')?.value||S.accounts[0]?.id||'';
   const toAccountId = document.getElementById('tx-to-account')?.value||'';
   const rateInput = document.getElementById('tx-rate');
@@ -177,6 +183,7 @@ function saveTx() {
     category: isTransfer ? 'other' : _txForm.category,
     merchant: isTransfer ? (merchant||'Transfer') : merchant,
     accountId, date, note,
+    ...(tags.length && {tags}),
     ...(isTransfer && {toAccountId})
   };
   let wasTransfer = false;

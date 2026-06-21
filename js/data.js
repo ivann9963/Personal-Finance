@@ -2,6 +2,10 @@
 function gid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
 }
+// Parse a comma-separated tag string into a clean, de-duped array (strips leading '#').
+function parseTags(str) {
+  return [...new Set((str||'').split(',').map(s => s.trim().replace(/^#+/,'').trim()).filter(Boolean))];
+}
 function escHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
