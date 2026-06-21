@@ -70,7 +70,7 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
     - **Custom confirm dialog**: `confirmDialog()` (`ui-components.js`) — a centered modal above all sheets — replaced **all 7** native `confirm()`/`prompt()` calls (delete account/category/recurring, undo import, restore backup, delete-all-transactions, clear-all-data). Native dialogs showed the domain and broke immersion.
     - **Emoji quick-pick grid** in the category editor (was a bare text field; now a grid matching the color-dot picker, with a text field for custom emoji). Fixed stale "N transactions will become Other" delete text (deletion now offers a reassign picker).
 23. **Recurring expenses made discoverable**: previously the only way to add a recurring expense was to toggle "Recurring" deep in the tx form. Added `openAddRecurring()` (opens the tx form pre-set to a recurring expense — toggle on, frequency visible; `openAddTxSheet` honors `prefill.recurring`) and **"+ Add recurring payment"** buttons in **Plan → Subscriptions** (populated + empty) and **Settings → Recurring & Subscriptions** (populated + empty). Tracking lives in the Subscriptions hub (total/month + next charge).
-24. **Reorder Analytics sections**: a "Reorder sections" button on Analytics opens a drag list (reuses the `.cat-row` drag pattern); the order persists in `settings.analyticsOrder` and `renderAnalyticsContent()` emits a `{id:html}` section map in that order. Helpers `ANALYTICS_SECTIONS`, `currentAnalyticsOrder()`, `openAnalyticsLayout()`, `setupSectionReorder()` in `analytics.js`.
+24. **Analytics customization** (all 4 requested options done): **(a) Reorder sections** — drag list, order in `settings.analyticsOrder`, `renderAnalyticsContent()` emits a `{id:html}` map in that order. **(b) Per-section sort** — dropdowns on Heatmap/Breakdown (Amount / My order / Name / Most used) + Top Merchants (Amount / Name / Most used), persisted in `settings.analyticsSort`. **(c) Custom category order** is the "My order" sort mode (follows `S.categories`). **(d) Show/hide categories** — 👁 button → sheet toggling `settings.analyticsHiddenCats`, filters Heatmap + Breakdown. Helpers in `analytics.js`: `ANALYTICS_SECTIONS`, `currentAnalyticsOrder`, `openAnalyticsLayout`, `setupSectionReorder`, `analyticsSort`, `setAnalyticsSort`, `sortCategoryIds`, `sortMerchantEntries`, `analyticsHidden`, `openAnalyticsCategoryFilter`, `toggleAnalyticsCat`.
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).
@@ -82,10 +82,10 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 
 ## Possible next steps (ideas, unprioritized)
 **Analytics customization** (requested 2026-06-20; building "reorder sections" first, rest are TODO):
-- [done ✓] **Reorder Analytics sections** — drag Heatmap / Spending Trend / Category Breakdown / Top Merchants / Income-vs-Expense into a custom order (persisted in `settings.analyticsOrder`).
-- [todo] **Use my category order in Analytics** — option to make the Heatmap + Category Breakdown follow the user's custom category order (from Settings drag-reorder) instead of sorting by amount.
-- [todo] **Per-section sort menu** — let each list sort by amount / name / number of transactions.
-- [todo] **Show/hide (pin) categories** in the Heatmap + Breakdown.
+- [done ✓] **Reorder Analytics sections** — drag into a custom order (`settings.analyticsOrder`).
+- [done ✓] **Use my category order** — "My order" sort mode makes Heatmap + Breakdown follow `S.categories` order.
+- [done ✓] **Per-section sort menu** — sort dropdowns on Heatmap/Breakdown (Amount / My order / Name / Most used) and Top Merchants (Amount / Name / Most used); persisted in `settings.analyticsSort {cats, merchants}`.
+- [done ✓] **Show/hide categories** — 👁 button on the Heatmap opens a sheet to hide categories from Heatmap + Breakdown (`settings.analyticsHiddenCats`).
 
 **Other:**
 - Round-up automation toggle for new transactions.

@@ -81,6 +81,74 @@ function setupSectionReorder() {
     });
   });
 }
+// --- Sort + show/hide controls (persisted in settings) ---
+function analyticsSort() {
+  return { cats:'amount', merchants:'amount', ...(S.settings.analyticsSort||{}) };
+}
+function setAnalyticsSort(which, mode) {
+  S.settings.analyticsSort = { ...analyticsSort(), [which]: mode };
+  saveState();
+  renderAnalyticsContent();
+}
+function analyticsHidden() { return new Set(S.settings.analyticsHiddenCats || []); }
+// Sort category ids by the chosen mode (amount / custom drag order / name / # transactions).
+function sortCategoryIds(ids, totals, counts) {
+  const mode = analyticsSort().cats;
+  const order = S.categories.map(c=>c.id);
+  return ids.slice().sort((a,b)=>{
+    if (mode==='name')   return getCatInfo(a).name.localeCompare(getCatInfo(b).name);
+    if (mode==='count')  return (counts[b]||0)-(counts[a]||0);
+    if (mode==='custom') return order.indexOf(a)-order.indexOf(b);
+    return (totals[b]||0)-(totals[a]||0); // amount (default)
+  });
+}
+function sortMerchantEntries(entries, counts) {
+  const mode = analyticsSort().merchants;
+  return entries.slice().sort((a,b)=>{
+    if (mode==='name')  return a[0].localeCompare(b[0]);
+    if (mode==='count') return (counts[b[0]]||0)-(counts[a[0]]||0);
+    return b[1]-a[1]; // amount (default)
+  });
+}
+// Compact inline sort dropdown for a section header.
+function analyticsSortSelect(which, opts) {
+  const cur = analyticsSort()[which];
+  return `<select onchange="setAnalyticsSort('${which}',this.value)" onclick="event.stopPropagation()" style="font-size:11px;background:var(--bg-elevated);color:var(--text-secondary);border:none;border-radius:6px;padding:4px 6px;font-weight:600">
+    ${opts.map(([v,l])=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`).join('')}</select>`;
+}
+// Show/hide categories sheet — toggles which categories appear in the Heatmap + Breakdown.
+function openAnalyticsCategoryFilter() {
+  const txs = getTxInRange(_analyticsRange).filter(t=>t.type==='expense');
+  const totals = {}; txs.forEach(t=>totals[t.category]=(totals[t.category]||0)+t.convertedAmount);
+  const hidden = analyticsHidden();
+  const dc = S.settings.defaultCurrency;
+  const rows = S.categories.map(c=>{
+    const isHidden = hidden.has(c.id);
+    const tot = totals[c.id]||0;
+    return `<div class="settings-row" data-catfilter="${escHtml(c.id)}" onclick="toggleAnalyticsCat('${escHtml(c.id)}')" style="opacity:${isHidden?.45:1}">
+      <div style="font-size:18px;width:28px;text-align:center">${c.emoji}</div>
+      <div class="settings-row-info"><div class="settings-row-lbl">${escHtml(c.name)}</div><div class="settings-row-val">${tot?formatCurrency(tot,dc,true):'—'}</div></div>
+      <div class="settings-row-right catfilter-icon" style="font-size:16px">${isHidden?'🙈':'👁️'}</div>
+    </div>`;
+  }).join('');
+  openSheet('analytics-catfilter', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Show / hide categories</div>
+    <div class="sheet-body" style="padding:0">
+      <div style="font-size:12px;color:var(--text-tertiary);padding:8px 16px">Tap to hide a category from the Heatmap and Breakdown.</div>
+      ${rows}
+      <div style="padding:16px"><button class="btn-primary" onclick="closeTopSheet()">Done</button></div>
+    </div>`);
+}
+function toggleAnalyticsCat(id) {
+  const hidden = analyticsHidden();
+  hidden.has(id) ? hidden.delete(id) : hidden.add(id);
+  S.settings.analyticsHiddenCats = [...hidden];
+  saveState();
+  const row = document.querySelector(`#sheet-analytics-catfilter [data-catfilter="${CSS.escape(id)}"]`);
+  if (row) { const h=hidden.has(id); row.style.opacity=h?'.45':'1'; const ic=row.querySelector('.catfilter-icon'); if(ic) ic.textContent=h?'🙈':'👁️'; }
+  renderAnalyticsContent();
+}
 function getDateRange(range) {
   const now = new Date();
   const end = new Date(now); end.setHours(23,59,59,999);
@@ -145,11 +213,11 @@ function renderAnalyticsContent() {
     if (!catMonthData[t.category]) catMonthData[t.category] = {};
     catMonthData[t.category][m] = (catMonthData[t.category][m]||0) + t.convertedAmount;
   });
-  const activeCats = Object.keys(catMonthData).sort((a,b)=>{
-    const ta = Object.values(catMonthData[a]).reduce((s,v)=>s+v,0);
-    const tb = Object.values(catMonthData[b]).reduce((s,v)=>s+v,0);
-    return tb-ta;
-  });
+  // Totals + counts per category (shared by heatmap sort & breakdown), then filter hidden + sort.
+  const catTotals = {}, catCounts = {};
+  expTxs.forEach(t=>{ catTotals[t.category]=(catTotals[t.category]||0)+t.convertedAmount; catCounts[t.category]=(catCounts[t.category]||0)+1; });
+  const hiddenCats = analyticsHidden();
+  const activeCats = sortCategoryIds(Object.keys(catMonthData).filter(c=>!hiddenCats.has(c)), catTotals, catCounts);
   const allVals = activeCats.flatMap(c=>months.map(m=>catMonthData[c][m]||0));
   const maxVal = Math.max(...allVals, 1);
   let hmHtml = '';
@@ -187,10 +255,8 @@ function renderAnalyticsContent() {
   const trendInsight = rising ? 'Your spending has increased for the last 3 months' :
     `Monthly average: ${formatCurrency(avgTrend,dc)}`;
 
-  // === C: Category breakdown ===
-  const catTotals = {};
-  expTxs.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.convertedAmount;});
-  const catEntries = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
+  // === C: Category breakdown === (reuses catTotals/catCounts; same hidden filter + sort as heatmap)
+  const catEntries = sortCategoryIds(Object.keys(catTotals).filter(c=>!hiddenCats.has(c)), catTotals, catCounts).map(c=>[c, catTotals[c]]);
   const catTotal = catEntries.reduce((s,[,v])=>s+v,0);
   const donutLabels = catEntries.map(([c])=>getCatInfo(c).name);
   const donutData2 = catEntries.map(([,v])=>v);
@@ -207,8 +273,8 @@ function renderAnalyticsContent() {
   // === D: Top Merchants ===
   const merTotals={}, merCts={};
   expTxs.forEach(t=>{merTotals[t.merchant]=(merTotals[t.merchant]||0)+t.convertedAmount;merCts[t.merchant]=(merCts[t.merchant]||0)+1;});
-  const topMers = Object.entries(merTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const maxMer = topMers[0]?.[1]||1;
+  const topMers = sortMerchantEntries(Object.entries(merTotals), merCts).slice(0,8);
+  const maxMer = Math.max(...topMers.map(([,a])=>a), 1);
   const merRows = topMers.map(([name,amt],i)=>`
     <div class="merchant-row" onclick="filterByMerchant('${escHtml(name)}')">
       <div class="merchant-rank">${i+1}</div>
@@ -227,7 +293,13 @@ function renderAnalyticsContent() {
   // Each section's HTML, keyed by id, so they can be emitted in the user's saved order.
   const sections = {
     heatmap: `<div class="analytics-sec" data-sec="heatmap">
-      <div class="analytics-sec-title">📊 Spending Heatmap</div>
+      <div class="analytics-sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>📊 Spending Heatmap</span>
+        <span style="display:flex;align-items:center;gap:6px">
+          ${analyticsSortSelect('cats', [['amount','Amount'],['custom','My order'],['name','Name'],['count','Most used']])}
+          <button onclick="openAnalyticsCategoryFilter()" title="Show / hide categories" style="background:var(--bg-elevated);border-radius:6px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">👁️</button>
+        </span>
+      </div>
       ${activeCats.length ? `<div class="chart-box"><div class="heatmap-outer">${hmHtml}</div></div>` : `<div class="chart-box" style="color:var(--text-secondary);font-size:14px;padding:24px;text-align:center">No expense data in this range</div>`}
     </div>`,
     trend: `<div class="analytics-sec" data-sec="trend">
@@ -236,14 +308,20 @@ function renderAnalyticsContent() {
       <div class="chart-insight-txt">${escHtml(trendInsight)}</div></div>
     </div>`,
     breakdown: `<div class="analytics-sec" data-sec="breakdown">
-      <div class="analytics-sec-title">🍩 Category Breakdown</div>
+      <div class="analytics-sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>🍩 Category Breakdown</span>
+        ${analyticsSortSelect('cats', [['amount','Amount'],['custom','My order'],['name','Name'],['count','Most used']])}
+      </div>
       <div class="chart-box">
         ${catEntries.length?`<div class="chart-inner"><canvas id="cat-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Total Spent</div><div class="donut-center-amt">${formatCurrency(catTotal,dc,true)}</div></div></div><div>${catRows}</div>`:
           `<div style="color:var(--text-secondary);font-size:14px;text-align:center;padding:16px">No data</div>`}
       </div>
     </div>`,
     merchants: `<div class="analytics-sec" data-sec="merchants">
-      <div class="analytics-sec-title">🏪 Top Merchants</div>
+      <div class="analytics-sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span>🏪 Top Merchants</span>
+        ${analyticsSortSelect('merchants', [['amount','Amount'],['name','Name'],['count','Most used']])}
+      </div>
       <div class="chart-box">${topMers.length?merRows:`<div style="color:var(--text-secondary);font-size:14px;text-align:center;padding:16px">No data</div>`}</div>
     </div>`,
     incexp: hasIncome?`<div class="analytics-sec" data-sec="incexp">
