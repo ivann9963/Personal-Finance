@@ -1,16 +1,18 @@
 # Project Status — Finance PWA
 
-_Last updated: 2026-06-20. Snapshot for picking the project back up after a break._
+_Last updated: 2026-06-21. Snapshot for picking the project back up after a break._
 
 Live app: **https://ivann9963.github.io/Personal-Finance/**
 Repo: **https://github.com/ivann9963/Personal-Finance**
+
+> **Handoff (2026-06-21):** Everything below is committed & pushed to `main` and live. Working tree is clean. Latest commit `7dd0549`. Tests: **91 passing**. This session shipped items **#10–#24** below (transfers, settings/backup overhaul, subscriptions hub + discoverable recurring, UX sweep, the sheet-animation fix, drag-reorder + custom dialogs, and full Analytics customization). **What's left** is the "Possible next steps" section near the bottom — start there.
 
 ## What this is
 A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, **no build step, no backend, no framework**. All data lives in the browser's `localStorage` (key `financeapp_v1`); each device/person has their own private data. Charting via Chart.js (CDN).
 
 ## Run / test / deploy
 - **Run locally:** `python3 -m http.server 8000` → open http://localhost:8000
-- **Tests:** `node tests/run.js` (dependency-free Node harness, currently **79 passing**)
+- **Tests:** `node tests/run.js` (dependency-free Node harness, currently **91 passing**)
 - **Deploy:** push to `main` → GitHub Pages auto-publishes. Service worker is now **network-first**, so updates reach users on reload (no more stale cache).
 - **On iPhone:** open the live URL in Safari → Share → Add to Home Screen.
 
@@ -80,18 +82,17 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 - **No multi-currency net-worth nuance** beyond manual exchange rates entered on transactions.
 - **Tests** cover the import/data logic well; UI flows are verified manually via Playwright scripts (not committed) — no automated UI test suite.
 
-## Possible next steps (ideas, unprioritized)
-**Analytics customization** (requested 2026-06-20; building "reorder sections" first, rest are TODO):
-- [done ✓] **Reorder Analytics sections** — drag into a custom order (`settings.analyticsOrder`).
-- [done ✓] **Use my category order** — "My order" sort mode makes Heatmap + Breakdown follow `S.categories` order.
-- [done ✓] **Per-section sort menu** — sort dropdowns on Heatmap/Breakdown (Amount / My order / Name / Most used) and Top Merchants (Amount / Name / Most used); persisted in `settings.analyticsSort {cats, merchants}`.
-- [done ✓] **Show/hide categories** — 👁 button on the Heatmap opens a sheet to hide categories from Heatmap + Breakdown (`settings.analyticsHiddenCats`).
+## What's left (prioritized — start here next session)
+_Analytics customization (reorder / sort / custom order / show-hide) is **fully done** — see item #24 above._
 
-**Other:**
-- Round-up automation toggle for new transactions.
-- CSV import: remember column mapping per bank; full import history (multiple undo levels — currently only the last batch).
-- Optional cloud backup/sync (or scheduled local-backup reminder/prompt).
-- Maybe split "Subscriptions" into true subscriptions vs. bills/rent, or rename to "Recurring".
+1. **Rename "Subscriptions" → "Recurring"** (small, quick win). The Plan segment is labelled "Subscriptions" but includes rent/bills/utilities, so the total (e.g. Landlord €900) surprises people. Either rename the segment to "Recurring", or split true subscriptions from bills. Touch points: `plan.js` (segment button + `renderSubscriptions`), wording in `recurring-insights.js`.
+2. **Cloud / automatic backup** (biggest "would I pay" lever, but an architecture decision). Today: manual JSON backup + dashboard staleness reminder. Options: lightweight no-backend (scheduled prompt / auto-download to Files-iCloud) vs. real sync (needs infra — iCloud/Dropbox file or a small server). Decide direction before building.
+3. **Round-up automation** for manually-added transactions (Revolut-style "round to nearest €1 into a vault"). Only imported round-ups are tracked today.
+4. **Paused recurring visibility**: paused subscriptions vanish from the Plan → Subscriptions hub (only shown in the manager). Could show them greyed with a "paused" tag.
+5. **CSV import niceties**: remember column mapping per bank; multi-level import history (only the last batch is undoable now — `S.lastImport`).
+6. **Automated UI tests**: logic is covered (91 tests in `tests/run.js`), but UI flows are verified manually. Consider committing a Playwright/Puppeteer smoke suite.
+
+**Verification tip (learned this session):** motion/animation quality can't be checked with screenshots — sample `getBoundingClientRect()` over time, or step the animation. The preview browser also caches JS per-file aggressively; to test current code, fetch each `js/*.js` with `{cache:'no-store'}` and `eval` it into the page (the `S`/`_*` globals persist from the initial load).
 
 ## Gotchas to remember
 - **Animation easing:** `--spring` (cubic-bezier(.34,1.56,.64,1)) *overshoots* — only use it on small elements (FAB, toggle knob, nav icon, toast). Never on edge-anchored surfaces: bottom sheets used it and the overshoot lifted the sheet ~80px off the bottom edge mid-open, flashing the background (looked awful). Sheets now use `--ease-sheet` (cubic-bezier(.32,.72,0,1), no overshoot). Verify motion by sampling `getBoundingClientRect()` over time — screenshots can't catch it.
