@@ -16,6 +16,7 @@ function openSheet(id, html, zIndex=1000) {
   bd.style.zIndex = zIndex - 1;
   bd.classList.add('visible');
   requestAnimationFrame(()=> requestAnimationFrame(()=> div.classList.add('open')));
+  haptic('light');
   _sheetStack.push(id);
 }
 function openSheet2(id, html) {
@@ -79,7 +80,7 @@ function confirmDialog(opts, onConfirm) {
   wrap.addEventListener('click', e => {
     const act = e.target.dataset?.act;
     if (e.target === wrap || act === 'cancel') close();
-    else if (act === 'ok') { close(); try { onConfirm && onConfirm(); } catch(err){ console.error(err); } }
+    else if (act === 'ok') { haptic('medium'); close(); try { onConfirm && onConfirm(); } catch(err){ console.error(err); } }
   });
 }
 function setupSheetSwipe(el, onClose) {
@@ -116,7 +117,18 @@ function setupSheetSwipe(el, onClose) {
     }
   });
 }
+// Tactile feedback. NOTE: iOS Safari/PWA does NOT support navigator.vibrate, so this is a
+// no-op on iPhone (our main target) and only fires on Android Chrome. Named presets keep
+// call sites intention-revealing; pass a custom number/array for one-offs.
+const HAPTIC = { light:8, medium:18, heavy:30, success:[12,40,18], warning:[20,40,20], error:[35,40,35] };
+function haptic(kind='light') {
+  try {
+    if (!navigator.vibrate) return;
+    navigator.vibrate(typeof kind === 'string' ? (HAPTIC[kind] ?? HAPTIC.light) : kind);
+  } catch(e) {}
+}
 function showToast(msg, type='info', duration=3000) {
+  haptic(type==='error'?'error':type==='warning'?'warning':type==='success'?'success':'light'); // feedback on most actions flows through here
   const div = document.createElement('div');
   div.className = `toast ${type}`;
   div.textContent = msg;

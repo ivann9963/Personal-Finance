@@ -76,6 +76,7 @@ function setupSectionReorder() {
       dragging = true; startIdx = rows.indexOf(row); targetIdx = startIdx;
       startY = e.touches ? e.touches[0].clientY : e.clientY;
       row.classList.add('cat-dragging');
+      haptic('medium'); // lift
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
     });
