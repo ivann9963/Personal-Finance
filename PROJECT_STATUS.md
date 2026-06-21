@@ -89,7 +89,7 @@ A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, 
 ## What's left (prioritized — start here next session)
 _Analytics customization (reorder / sort / custom order / show-hide) is **fully done** — see item #24 above._
 
-1. **Rename "Subscriptions" → "Recurring"** (small, quick win). The Plan segment is labelled "Subscriptions" but includes rent/bills/utilities, so the total (e.g. Landlord €900) surprises people. Either rename the segment to "Recurring", or split true subscriptions from bills. Touch points: `plan.js` (segment button + `renderSubscriptions`), wording in `recurring-insights.js`.
+1. ~~Rename "Subscriptions" → "Recurring"~~ ✅ **done 2026-06-21** — the Plan segment now reads "Recurring" (it includes rent/bills, so the total no longer surprises). Internal `_planView` id stays `'subscriptions'`. _If you'd rather split true subscriptions from bills/rent, that's a larger follow-up._
 2. **Cloud / automatic backup** (biggest "would I pay" lever, but an architecture decision). Today: manual JSON backup + dashboard staleness reminder. Options: lightweight no-backend (scheduled prompt / auto-download to Files-iCloud) vs. real sync (needs infra — iCloud/Dropbox file or a small server). Decide direction before building.
 3. **Round-up automation** for manually-added transactions (Revolut-style "round to nearest €1 into a vault"). Only imported round-ups are tracked today.
 4. **Paused recurring visibility**: paused subscriptions vanish from the Plan → Subscriptions hub (only shown in the manager). Could show them greyed with a "paused" tag.

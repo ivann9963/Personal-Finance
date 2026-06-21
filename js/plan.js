@@ -4,7 +4,7 @@ function renderPlan() {
   el.innerHTML = `
     <div class="seg" style="margin:12px 16px">
       <button class="seg-btn${_planView==='budgets'?' active':''}" onclick="setPlanView('budgets')">Budgets</button>
-      <button class="seg-btn${_planView==='subscriptions'?' active':''}" onclick="setPlanView('subscriptions')">Subscriptions</button>
+      <button class="seg-btn${_planView==='subscriptions'?' active':''}" onclick="setPlanView('subscriptions')">Recurring</button>
       <button class="seg-btn${_planView==='calendar'?' active':''}" onclick="setPlanView('calendar')">Calendar</button>
     </div>
     <div id="plan-content"></div>`;
