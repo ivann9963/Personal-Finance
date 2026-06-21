@@ -151,6 +151,7 @@ function deleteRecurringSchedule(id) {
 function openEditRecurringSheet(id) {
   const r = S.recurringSchedules.find(s=>s.id===id); if (!r) return;
   const curOpts = CURRENCIES.map(c=>`<option value="${c.code}"${r.currency===c.code?' selected':''}>${c.code}</option>`).join('');
+  const accOpts = S.accounts.map(a=>`<option value="${a.id}"${r.accountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
   const catPills = S.categories.map(c=>`
     <div class="cat-pill${r.category===c.id?' sel':''}" data-catid="${c.id}" onclick="selectRecurringCat('${c.id}')">
       <div class="cat-pill-emoji">${c.emoji}</div>
@@ -168,14 +169,20 @@ function openEditRecurringSheet(id) {
         <div class="form-field"><label class="form-label">Currency</label>
           <select id="rec-currency" class="form-input">${curOpts}</select></div>
       </div>
-      <div class="form-field"><label class="form-label">Frequency</label>
-        <select id="rec-freq" class="form-input">
-          <option value="daily"${r.frequency==='daily'?' selected':''}>Daily</option>
-          <option value="weekly"${r.frequency==='weekly'?' selected':''}>Weekly</option>
-          <option value="biweekly"${r.frequency==='biweekly'?' selected':''}>Biweekly</option>
-          <option value="monthly"${r.frequency==='monthly'?' selected':''}>Monthly</option>
-          <option value="yearly"${r.frequency==='yearly'?' selected':''}>Yearly</option>
-        </select></div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Frequency</label>
+          <select id="rec-freq" class="form-input">
+            <option value="daily"${r.frequency==='daily'?' selected':''}>Daily</option>
+            <option value="weekly"${r.frequency==='weekly'?' selected':''}>Weekly</option>
+            <option value="biweekly"${r.frequency==='biweekly'?' selected':''}>Biweekly</option>
+            <option value="monthly"${r.frequency==='monthly'?' selected':''}>Monthly</option>
+            <option value="yearly"${r.frequency==='yearly'?' selected':''}>Yearly</option>
+          </select></div>
+        <div class="form-field"><label class="form-label">Start / next date</label>
+          <input id="rec-startdate" class="form-input" type="date" value="${r.startDate}"></div>
+      </div>
+      ${accOpts?`<div class="form-field"><label class="form-label">Account</label>
+        <select id="rec-account" class="form-input">${accOpts}</select></div>`:''}
       <div class="form-field"><label class="form-label">Category</label>
         <div class="cat-scroll">${catPills}</div>
         <input id="rec-cat" type="hidden" value="${r.category}"></div>
@@ -196,6 +203,8 @@ function saveRecurringSchedule(id) {
   const currency = document.getElementById('rec-currency')?.value || r.currency;
   const frequency= document.getElementById('rec-freq')?.value || r.frequency;
   const category = document.getElementById('rec-cat')?.value   || r.category;
+  const accountId= document.getElementById('rec-account')?.value || r.accountId;
+  const startDate= document.getElementById('rec-startdate')?.value || r.startDate;
   if (!merchant) { showToast('Enter a merchant','error'); return; }
   if (!amtStr || isNaN(parseFloat(amtStr)) || parseFloat(amtStr)<=0) { showToast('Enter an amount','error'); return; }
   const cents = Math.round(parseFloat(amtStr)*100);
@@ -203,7 +212,7 @@ function saveRecurringSchedule(id) {
   // Drop future auto-generated entries so they regenerate with the new values
   const today = new Date().toISOString().slice(0,10);
   S.transactions = S.transactions.filter(t => !(t.recurringId===id && t.date>=today && t.isRecurring));
-  Object.assign(r, {merchant, amount:cents, currency, frequency, category,
+  Object.assign(r, {merchant, amount:cents, currency, frequency, category, accountId, startDate,
     convertedAmount: conv.ok?conv.amount:cents, exchangeRate: conv.rate||1});
   generateRecurring();
   saveState(); closeTopSheet(); renderRecurringList(); renderCurrentTab();
