@@ -57,6 +57,7 @@ let _analyticsRange = '3M';
 let _txFilter = 'all';
 let _txSearch = '';
 let _txPage = 1;
+let _txDateFilter = null; // {start,end,label} when a drill-down (e.g. from Analytics) scopes the list to a date range
 let _budgetMonth = new Date(); _budgetMonth.setDate(1);
 let _calMonth = new Date(); _calMonth.setDate(1);
 let _activeSwipeRow = null;

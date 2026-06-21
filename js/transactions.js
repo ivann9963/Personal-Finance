@@ -19,8 +19,9 @@ function renderTransactions() {
   setupPTR(el);
   renderTxList();
 }
-function setTxFilter(f) { _txFilter=f; _txPage=1; renderTransactions(); }
+function setTxFilter(f) { _txDateFilter=null; _txFilter=f; _txPage=1; renderTransactions(); } // tapping a chip = fresh manual filter, all dates
 function setTxSearch(v) { _txSearch=v; _txPage=1; renderTxList(); }
+function clearTxDrill() { _txFilter='all'; _txSearch=''; _txDateFilter=null; _txPage=1; renderTransactions(); }
 function renderTxList() {
   const body = document.getElementById('tx-list-body'); if (!body) return;
   let txs = [...S.transactions];
@@ -36,6 +37,8 @@ function renderTxList() {
       (t.note||'').toLowerCase().includes(q)||
       (getCatInfo(t.category).name||'').toLowerCase().includes(q));
   }
+  // Date range (set by drill-downs like Analytics so the list matches the selected period)
+  if (_txDateFilter) txs = txs.filter(t => t.date >= _txDateFilter.start && t.date <= _txDateFilter.end);
   const total = txs.length;
   txs = txs.slice(0, _txPage*50);
   // Group by day
@@ -43,9 +46,13 @@ function renderTxList() {
   txs.forEach(t => { (groups[t.date]=groups[t.date]||[]).push(t); });
   const days = Object.keys(groups).sort((a,b)=>b.localeCompare(a));
   const dc = S.settings.defaultCurrency;
-  const filterBanner = catFilterId ? (() => {
-    const ci = getCatInfo(catFilterId);
-    return `<div class="filter-banner">${ci.emoji} ${escHtml(ci.name)} · ${total} ${total===1?'transaction':'transactions'}<button onclick="setTxFilter('all')">✕ Clear</button></div>`;
+  const drillActive = catFilterId || _txDateFilter;
+  const filterBanner = drillActive ? (() => {
+    const bits = [];
+    if (catFilterId) { const ci = getCatInfo(catFilterId); bits.push(`${ci.emoji} ${escHtml(ci.name)}`); }
+    else if (_txSearch) bits.push(`“${escHtml(_txSearch)}”`);
+    if (_txDateFilter) bits.push(escHtml(_txDateFilter.label));
+    return `<div class="filter-banner">${bits.join(' · ')} · ${total} ${total===1?'transaction':'transactions'}<button onclick="clearTxDrill()">✕ Clear</button></div>`;
   })() : '';
   if (!days.length) {
     const isBlank = !_txSearch && _txFilter === 'all' && S.transactions.length === 0;

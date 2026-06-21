@@ -348,13 +348,22 @@ function hmColor(intensity) {
   const r=Math.round(50+(220-50)*intensity), g=Math.round(80-60*intensity), b=Math.round(80-60*intensity);
   return `rgba(${r},${g},${b},${0.2+intensity*0.8})`;
 }
+// The current Analytics range as a transactions date-filter (null for "All" = no scoping).
+function analyticsRangeFilter() {
+  if (_analyticsRange === 'All') return null;
+  const {start, end} = getDateRange(_analyticsRange);
+  const labels = {'1M':'Last month','3M':'Last 3 months','6M':'Last 6 months','1Y':'Last year'};
+  return { start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10), label: labels[_analyticsRange] || _analyticsRange };
+}
 function filterByMerchant(name) {
   _txSearch=name; _txFilter='all'; _txPage=1;
+  _txDateFilter = analyticsRangeFilter(); // honor the selected range, don't show all-time
   switchTab('transactions');
   _tabsInit['transactions']=true; renderTransactions();
 }
 function filterByCategory(catId) {
   _txSearch=''; _txFilter='cat:'+catId; _txPage=1;
+  _txDateFilter = analyticsRangeFilter(); // honor the selected range, don't show all-time
   switchTab('transactions');
   _tabsInit['transactions']=true; renderTransactions();
 }
