@@ -56,8 +56,8 @@ Optional but recommended: under **URL Configuration**, set **Site URL** to
 
 ## 5. Sign in and pick a passphrase
 
-1. Enter your email and choose a **password** → **Sign In / Create Account** (first use
-   creates the account, later uses sign in — same button).
+1. First time: enter your email, choose a **password** → **Create Account**. Every time
+   after that (including on a new phone): same email + password → **Sign In**.
 2. Choose an **encryption passphrase** (min 8 chars) and **write it down** — it never leaves
    your device, and without it a cloud backup cannot be decrypted by anyone, including you.
    (Yes, that's two secrets: the password unlocks your *account*; the passphrase unlocks
