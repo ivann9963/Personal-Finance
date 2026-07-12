@@ -247,6 +247,36 @@ suite('recurringExpenseSchedules — only active expenses', () => {
   check('correct one kept', subs[0].id, 'a');
 });
 
+suite('jsAttr — safe in onclick="fn(\'...\')" against imported data', () => {
+  // Reproduce what a browser actually does: HTML-decode the attribute value, THEN run the JS.
+  // (&amp; must decode last so it can't double-decode an entity in the data.)
+  const htmlDecode = s => s.replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+  // Given a value, build the real attribute, decode it, and evaluate the handler capturing its arg.
+  const roundtrip = v => {
+    const attr = `fn('${app.jsAttr(v)}')`;          // exactly how the app emits it
+    const js = htmlDecode(attr);                     // browser decodes the attribute
+    let captured, pollutionBefore = global.__pwned;
+    // eslint-disable-next-line no-new-func
+    new Function('fn', js)(x => { captured = x; });   // browser parses+runs the handler
+    return { captured, polluted: global.__pwned !== pollutionBefore };
+  };
+  const cases = [
+    "McDonald's",                       // the common apostrophe that silently broke tap-through
+    "x');window.__pwned=1;('",          // code-injection payload
+    "Tom & Jerry's",                    // ampersand + apostrophe
+    'quote " and \\ backslash',         // double quote + backslash
+    "a\nb",                             // newline
+    "lä  ' \" \\ < > & ; )",            // kitchen sink
+  ];
+  cases.forEach(v => {
+    const r = roundtrip(v);
+    check(`arg preserved: ${JSON.stringify(v).slice(0,24)}`, r.captured, v);
+    check(`no code execution: ${JSON.stringify(v).slice(0,24)}`, r.polluted, false);
+  });
+  check('null/undefined → empty string arg', roundtrip(null).captured, '');
+  check('plain gid-style id is unchanged', app.jsAttr('cat_abc123'), 'cat_abc123');
+});
+
 suite('JSON backup round-trip — export → restore keeps everything', () => {
   // Build a state exercising every collection, serialize it exactly like exportJSON,
   // then merge it back exactly like importJSON — nothing may be lost or mangled.

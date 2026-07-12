@@ -84,7 +84,7 @@ function renderDashboard() {
   const insightCards = insights.length
     ? insights.map((ins,i)=>`
       <div class="insight-card" style="animation-delay:${i*50}ms">
-        <button class="insight-dismiss" onclick="dismissInsight('${escHtml(ins.id)}')">✕</button>
+        <button class="insight-dismiss" onclick="dismissInsight('${jsAttr(ins.id)}')">✕</button>
         <div class="insight-icon">${ins.icon}</div>
         <div class="insight-hl">${escHtml(ins.headline)}</div>
         <div class="insight-detail">${escHtml(ins.detail)}</div>

@@ -121,7 +121,15 @@ function cloudHandleHash() {
 }
 
 // --- backup & restore ---
-let _cloudTimer = null, _cloudBusy = false;
+let _cloudTimer = null, _cloudBusy = false, _lastCloudSig = null;
+// Signature of the data we'd back up, EXCLUDING the volatile cloud metadata (lastCloudBackupAt),
+// so a backup writing its own timestamp doesn't look like a change and re-trigger itself. Used to
+// skip redundant PBKDF2 + uploads when auto-backup fires but nothing actually changed.
+function cloudStateSignature() {
+  if (!S) return '';
+  const { cloud, ...restSettings } = S.settings || {};
+  return JSON.stringify({ ...S, settings: restSettings });
+}
 async function cloudBackupNow(silent=false) {
   if (!cloudActive() || _cloudBusy) return false;
   _cloudBusy = true;
@@ -135,6 +143,7 @@ async function cloudBackupNow(silent=false) {
       body: JSON.stringify([{user_id: cloudSession().user_id, payload: JSON.stringify(enc), updated_at: new Date().toISOString()}]),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _lastCloudSig = cloudStateSignature(); // record what we just uploaded, before the timestamp write
     S.settings.cloud = {...cloudCfg(), lastCloudBackupAt: Date.now()};
     saveState(); // _cloudBusy still true → the schedule hook below ignores this save
     if (!silent) showToast('Backed up to cloud','success');
@@ -184,6 +193,7 @@ async function cloudRestore() {
 function scheduleCloudBackup() {
   if (_cloudBusy || !cloudActive() || !(S.settings.cloud.auto ?? true)) return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (_lastCloudSig !== null && cloudStateSignature() === _lastCloudSig) return; // nothing changed since last backup
   clearTimeout(_cloudTimer);
   _cloudTimer = setTimeout(()=>cloudBackupNow(true), 4000);
 }

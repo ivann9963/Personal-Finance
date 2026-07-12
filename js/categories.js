@@ -18,7 +18,7 @@ function renderCatList() {
       <div class="cat-drag-handle" title="Drag to reorder">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/></svg>
       </div>
-      <div onclick="openCategoryEditor('${escHtml(c.id)}')" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer">
+      <div onclick="openCategoryEditor('${jsAttr(c.id)}')" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer">
         <div style="font-size:20px;width:28px;text-align:center;flex-shrink:0">${c.emoji}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:15px;font-weight:600">${escHtml(c.name)}</div>
@@ -110,7 +110,7 @@ function openCategoryEditor(id, onSaved) {
       </div>
       <div style="height:8px"></div>
       <button class="btn-primary" onclick="saveCategory()">${editing ? 'Save Changes' : 'Add Category'}</button>
-      ${editing ? `<div style="height:10px"></div><button class="btn-danger" onclick="deleteCatFromEditor('${escHtml(editing.id)}')">Delete Category</button>` : ''}
+      ${editing ? `<div style="height:10px"></div><button class="btn-danger" onclick="deleteCatFromEditor('${jsAttr(editing.id)}')">Delete Category</button>` : ''}
     </div>`);
 }
 function pickCatEmoji(e) {
@@ -162,7 +162,7 @@ function deleteCatFromEditor(id) {
       <div class="form-field"><label class="form-label">Move transactions to</label>
         <select id="reassign-target" class="form-input">${opts}</select></div>
       <div style="height:8px"></div>
-      <button class="btn-danger" onclick="finalizeDeleteCategory('${id}', document.getElementById('reassign-target').value)">Move &amp; Delete Category</button>
+      <button class="btn-danger" onclick="finalizeDeleteCategory('${jsAttr(id)}', document.getElementById('reassign-target').value)">Move &amp; Delete Category</button>
       <div style="height:10px"></div>
       <button class="btn-secondary" onclick="closeTopSheet2()">Cancel</button>
     </div>`;

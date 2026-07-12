@@ -334,7 +334,7 @@ function renderCSVReviewSection(posIsExpense) {
     const cur = _csvMerchantOverrides[m]?.category || 'other';
     return `<div class="csv-review-row">
       <div class="csv-review-info"><div class="truncate" style="font-weight:600;font-size:13px">${escHtml(m)}</div><div style="font-size:11px;color:var(--text-tertiary)">${g.count}× · ${formatCurrency(g.total,g.cur,true)}</div></div>
-      <select class="form-input" style="font-size:12px;padding:6px 8px;max-width:150px" onchange="setCSVMerchantCat('${escHtml(m).replace(/'/g,"\\'")}',this.value)">${catOpts(cur)}</select>
+      <select class="form-input" style="font-size:12px;padding:6px 8px;max-width:150px" onchange="setCSVMerchantCat('${jsAttr(m)}',this.value)">${catOpts(cur)}</select>
     </div>`;
   }).join('');
   return `<div style="margin-top:16px">

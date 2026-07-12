@@ -30,7 +30,7 @@ function loadApp() {
     ;globalThis.__app = {
       parseDateStr, parseAmountStr, mapCategoryValue, inferCategoryFromMerchant,
       classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
-      mergeSavedState,
+      mergeSavedState, escHtml, jsAttr,
       projectWealth, monthsToReach, avgMonthlySavings, netWorthNow, investmentGain, investmentSummary, applyTransferBalances,
       holdingValue, holdingsValue, holdingGain, recordValuePoint, syncHoldingsValue,
       encryptPayload, decryptPayload, cloudEnabled, cloudActive, scheduleCloudBackup,

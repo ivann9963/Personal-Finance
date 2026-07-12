@@ -11,6 +11,16 @@ function escHtml(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Safe interpolation of a value into a SINGLE-quoted JS string that itself lives inside a
+// DOUBLE-quoted HTML on* attribute, e.g. onclick="fn('${jsAttr(x)}')". escHtml alone is NOT
+// enough here: the browser HTML-decodes the attribute before the JS parser runs, so an escaped
+// quote (&#39;) turns back into ' and closes the string — letting imported data (merchant names,
+// tags) break the handler or execute code. We first backslash-escape for the JS string context,
+// then escHtml for the attribute context; the two survive together (\&#39; decodes to \').
+function jsAttr(s) {
+  return escHtml(String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+}
 function defaultState() {
   return {
     accounts: [], transactions: [], budgets: [],

@@ -126,7 +126,7 @@ function openAnalyticsCategoryFilter() {
   const rows = S.categories.map(c=>{
     const isHidden = hidden.has(c.id);
     const tot = totals[c.id]||0;
-    return `<div class="settings-row" data-catfilter="${escHtml(c.id)}" onclick="toggleAnalyticsCat('${escHtml(c.id)}')" style="opacity:${isHidden?.45:1}">
+    return `<div class="settings-row" data-catfilter="${escHtml(c.id)}" onclick="toggleAnalyticsCat('${jsAttr(c.id)}')" style="opacity:${isHidden?.45:1}">
       <div style="font-size:18px;width:28px;text-align:center">${c.emoji}</div>
       <div class="settings-row-info"><div class="settings-row-lbl">${escHtml(c.name)}</div><div class="settings-row-val">${tot?formatCurrency(tot,dc,true):'—'}</div></div>
       <div class="settings-row-right catfilter-icon" style="font-size:16px">${isHidden?'🙈':'👁️'}</div>
@@ -158,7 +158,13 @@ function getDateRange(range) {
   else if (range==='3M') start.setMonth(start.getMonth()-3);
   else if (range==='6M') start.setMonth(start.getMonth()-6);
   else if (range==='1Y') start.setFullYear(start.getFullYear()-1);
-  else start.setFullYear(2000); // All
+  else {
+    // "All" = since the user's first transaction. A fixed year-2000 floor would make the heatmap
+    // render hundreds of empty month columns (and the charts hundreds of points) for anyone with
+    // only recent data. Fall back to today when there are no transactions.
+    const earliest = (S.transactions||[]).reduce((min,t)=> t.date < min ? t.date : min, end.toISOString().slice(0,10));
+    start.setTime(new Date(earliest + 'T00:00:00').getTime());
+  }
   return {start, end};
 }
 function getTxInRange(range) {
@@ -238,7 +244,7 @@ function renderAnalyticsContent() {
         const intensity = v/maxVal;
         const bg = hmColor(intensity);
         const lbl = v>0?formatCurrency(v,dc,true):'';
-        hmHtml += `<div class="hm-cell${v===0?' empty':''}" style="background:${bg}" onclick="openHeatmapDetail('${escHtml(cat)}','${m}')">${lbl}</div>`;
+        hmHtml += `<div class="hm-cell${v===0?' empty':''}" style="background:${bg}" onclick="openHeatmapDetail('${jsAttr(cat)}','${m}')">${lbl}</div>`;
       });
     });
     hmHtml += `</div>`;
@@ -265,7 +271,7 @@ function renderAnalyticsContent() {
   const catRows = catEntries.slice(0,8).map(([c,v])=>{
     const ci=getCatInfo(c);
     const pct=catTotal>0?Math.round(v/catTotal*100):0;
-    return `<div class="legend-item" style="width:100%;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)" onclick="filterByCategory('${escHtml(c)}')">
+    return `<div class="legend-item" style="width:100%;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)" onclick="filterByCategory('${jsAttr(c)}')">
       <div style="display:flex;align-items:center;gap:8px"><div class="legend-dot" style="background:${ci.color}"></div><span>${ci.emoji} ${escHtml(ci.name)}</span></div>
       <div style="display:flex;align-items:center;gap:12px"><span style="color:var(--text-tertiary)">${pct}%</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-variant-numeric:tabular-nums">${formatCurrency(v,dc,true)}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>`;
@@ -277,7 +283,7 @@ function renderAnalyticsContent() {
   const topMers = sortMerchantEntries(Object.entries(merTotals), merCts).slice(0,8);
   const maxMer = Math.max(...topMers.map(([,a])=>a), 1);
   const merRows = topMers.map(([name,amt],i)=>`
-    <div class="merchant-row" onclick="filterByMerchant('${escHtml(name)}')">
+    <div class="merchant-row" onclick="filterByMerchant('${jsAttr(name)}')">
       <div class="merchant-rank">${i+1}</div>
       <div class="merchant-info"><div class="merchant-name truncate">${escHtml(name)}</div><div class="merchant-ct">${merCts[name]} transactions</div></div>
       <div class="merchant-bar-wrap"><div class="merchant-bar" style="width:${Math.round(amt/maxMer*100)}%"></div></div>

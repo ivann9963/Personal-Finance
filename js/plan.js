@@ -68,7 +68,7 @@ function renderBudgets(el) {
     const delta = lastSpent>0 ? Math.round((spent-lastSpent)/lastSpent*100) : null;
     const remaining = budAmt - spent;
     const daysLeft = dim - diy;
-    return `<div class="budget-card${over?' exceeded':''}" style="cursor:pointer" onclick="openEditBudget('${escHtml(b.category)}')">
+    return `<div class="budget-card${over?' exceeded':''}" style="cursor:pointer" onclick="openEditBudget('${jsAttr(b.category)}')">
       <div class="budget-hdr">
         <div class="budget-name">${ci.emoji} ${escHtml(ci.name)}</div>
         <div class="budget-amts"><span class="budget-spent" style="color:${over?'var(--red)':'var(--text-primary)'}">${formatCurrency(spent,dc)}</span><span class="budget-total"> / ${formatCurrency(budAmt,dc)}</span></div>
@@ -257,8 +257,8 @@ function openAddBudgetSheet(editCat) {
       <div class="form-field"><label class="form-label">Monthly Amount</label>
         <input id="bud-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${existing?(existing.amount/100).toFixed(2):''}" style="font-size:20px"></div>
       <div style="height:8px"></div>
-      <button class="btn-primary" onclick="saveBudget('${existing?escHtml(existing.category):''}')">${existing?'Save Changes':'Save Budget'}</button>
-      ${existing?`<div style="height:10px"></div><button class="btn-danger" onclick="deleteBudget('${escHtml(existing.category)}')">Delete Budget</button>`:''}
+      <button class="btn-primary" onclick="saveBudget('${existing?jsAttr(existing.category):''}')">${existing?'Save Changes':'Save Budget'}</button>
+      ${existing?`<div style="height:10px"></div><button class="btn-danger" onclick="deleteBudget('${jsAttr(existing.category)}')">Delete Budget</button>`:''}
     </div>`);
 }
 function openEditBudget(cat) { openAddBudgetSheet(cat); }

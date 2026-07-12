@@ -293,7 +293,7 @@ function openTxDetail(txId) {
       ${detailRow('Type', tx.type.charAt(0).toUpperCase()+tx.type.slice(1))}
       ${showConverted?detailRow('Exchange Rate', tx.exchangeRate?.toFixed(4)||'—'):''}
       ${tx.note?detailRow('Note', tx.note):''}
-      ${tx.tags&&tx.tags.length?`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">Tags</span><div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-left:16px">${tx.tags.map(t=>`<button class="tag-chip" onclick="closeTopSheet();filterByTag('${escHtml(t)}')">#${escHtml(t)}</button>`).join('')}</div></div>`:''}
+      ${tx.tags&&tx.tags.length?`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px;color:var(--text-secondary);flex-shrink:0">Tags</span><div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-left:16px">${tx.tags.map(t=>`<button class="tag-chip" onclick="closeTopSheet();filterByTag('${jsAttr(t)}')">#${escHtml(t)}</button>`).join('')}</div></div>`:''}
       ${tx.isRecurring?detailRow('Recurring','Yes — part of a recurring schedule'):''}
       <div style="height:16px"></div>
       <div style="display:flex;gap:10px">
