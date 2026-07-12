@@ -25,7 +25,14 @@ function cloudSignedIn() { return !!cloudSession(); }
 function cloudActive() { return cloudEnabled() && cloudSignedIn() && !!cloudPass(); }
 
 // --- crypto: passphrase → AES-GCM key; payload format {v,salt,iv,ct} (all base64) ---
-function _b64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+// Chunked: spreading a whole ciphertext into fromCharCode(...) overflows the call stack on
+// real-sized backups (hit on iOS Safari with a few months of history).
+function _b64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 function _unb64(str) { return Uint8Array.from(atob(str), c=>c.charCodeAt(0)); }
 async function _deriveKey(passphrase, salt) {
   const raw = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);

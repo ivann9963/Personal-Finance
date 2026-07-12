@@ -436,6 +436,9 @@ suite('gridToCSVData — Excel grid → CSV pipeline shape', () => {
     check('tampered ciphertext rejected', tamperFailed, true);
     const enc2 = await app.encryptPayload(text, secret);
     check('fresh salt/iv each time', enc2.salt !== enc.salt && enc2.iv !== enc.iv, true);
+    // Real backups are 100KB+ — the old base64 spread overflowed the call stack on iOS
+    const big = JSON.stringify({transactions: Array.from({length: 5000}, (_, i) => ({id:'tx'+i, merchant:'Merchant '+i, note:'x'.repeat(100)}))});
+    check('large payload (>500KB) survives', await app.decryptPayload(await app.encryptPayload(big, secret), secret) === big, true);
   }
 
   suite('cloud backup — gating', () => {
