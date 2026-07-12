@@ -193,8 +193,8 @@ function openCloudBackupSheet() {
       </div>
       <div class="form-field"><label class="form-label">Supabase Project URL</label>
         <input id="cloud-url" class="form-input" type="url" placeholder="https://xxxx.supabase.co" value="${escHtml(c?.url||'')}"></div>
-      <div class="form-field"><label class="form-label">Anon (public) key</label>
-        <input id="cloud-key" class="form-input" type="text" placeholder="eyJhbGciOi…" value="${escHtml(c?.anonKey||'')}"></div>
+      <div class="form-field"><label class="form-label">Publishable / anon key</label>
+        <input id="cloud-key" class="form-input" type="text" placeholder="sb_publishable_… or eyJ…" value="${escHtml(c?.anonKey||'')}"></div>
       <button class="btn-primary" onclick="saveCloudConfig()">Save &amp; Continue</button>`;
   } else if (!cloudSignedIn()) {
     body = `

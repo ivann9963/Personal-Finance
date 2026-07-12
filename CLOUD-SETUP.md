@@ -46,10 +46,12 @@ Optional but recommended: under **URL Configuration**, set **Site URL** to
 
 ## 4. Copy the two values into the app
 
-1. Sidebar → **Project Settings** (gear) → **API** (or *Data API*).
-2. Copy **Project URL** (looks like `https://abcdefgh.supabase.co`).
-3. Copy the **anon / public** API key (long `eyJ…` string — it's safe to be public; the SQL
-   policy above is what protects your row).
+1. Sidebar → **Project Settings** (gear) → **API Keys**.
+2. Copy the **Publishable key** (`sb_publishable_…`) — older projects show a "Legacy" tab
+   with an **anon** `eyJ…` key instead; either works. It's safe to be public — the SQL
+   policy above is what protects your row. **Never use a secret / service_role key.**
+3. Your **Project URL** is `https://<Project ID>.supabase.co` — the Project ID is on
+   *Project Settings → General* (the URL is also shown on the *Data API* page).
 4. In the Finance app: **Settings → Cloud Backup** → paste both → **Save & Continue**.
 
 ## 5. Sign in and pick a passphrase
