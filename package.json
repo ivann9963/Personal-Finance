@@ -1,0 +1,13 @@
+{
+  "name": "finance-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal finance tracker — static offline-first PWA (vanilla HTML/CSS/JS, no build step).",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:ui": "node tests/ui-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

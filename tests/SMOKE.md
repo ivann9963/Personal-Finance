@@ -7,13 +7,25 @@ pushing, run BOTH the unit tests and the in-browser smoke below.
 
 ## 1. Static (always)
 ```
-node tests/run.js                 # must be all-pass
+node tests/run.js                 # zero-dep logic tests — must be all-pass
 for f in js/*.js; do node --check "$f"; done   # must all parse
 grep -rnE "TODO|FIXME|WIP" js/    # nothing half-done
 git status --short                # commit everything; never leave the tree dirty at session end
 ```
 
-## 2. In-browser smoke (paste into the preview / console after loading the app)
+## 1b. Automated UI smoke (preferred — replaces most manual browser poking)
+```
+npm i && npx playwright install chromium   # one-time
+npm run test:ui                            # drives the real app headless — must be all-pass
+```
+`tests/ui-smoke.mjs` boots the app in a headless browser, runs the render-everything smoke
+(errorCount 0), and asserts the interactions that historically broke while unit tests stayed
+green: CSV file button opens, buttons fire once, merchant tap-through survives apostrophes/
+injection, add-transaction persists, cloud sheet renders. Add a check here whenever a runtime
+regression slips through. (Playwright is an opt-in devDependency; the logic tests above stay
+zero-dep.)
+
+## 2. In-browser smoke (manual fallback — paste into the preview / console after loading the app)
 Exercises every render path + every sheet entry point and reports any throw. **Must return
 `errorCount: 0`.** Also separately verifies the two things most easily broken by overlays/handlers:
 CSV import's file button and that buttons fire exactly once.
