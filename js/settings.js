@@ -63,6 +63,8 @@ function openSettings() {
     <div class="sheet-body" style="padding:0 0 max(24px,var(--safe-bottom))">
       <div class="settings-grp-title">Backup &amp; Restore</div>
       ${backupCard}
+      ${settingsRow('openCloudBackupSheet()', '☁️', 'Cloud Backup',
+        cloudActive() ? `On — last ${relTimeSince(cloudCfg().lastCloudBackupAt)||'never'}` : cloudEnabled() ? 'Set up — finish signing in' : 'Automatic encrypted backup — set up')}
 
       <div class="settings-grp-title">Preferences</div>
       ${settingsRow('openThemePicker()', '🎨', 'Theme', themeLabel)}

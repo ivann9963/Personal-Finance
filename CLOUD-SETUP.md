@@ -1,0 +1,77 @@
+# Cloud Backup setup (one time, ~5 minutes, free)
+
+The app can automatically back up your data to **your own** free [Supabase](https://supabase.com)
+project. Everything is **encrypted on your phone before upload** with a passphrase only you
+know — Supabase (or anyone who breaches it) only ever sees an unreadable blob.
+
+## 1. Create the project
+
+1. Go to <https://supabase.com> → **Start your project** → sign up (GitHub login is easiest).
+2. **New project** → any name (e.g. `finance-backup`), pick a region near you, generate a
+   database password (you won't need it again — the app never uses it). Free plan is fine.
+3. Wait ~1 minute while it provisions.
+
+## 2. Create the backup table
+
+In the left sidebar open **SQL Editor** → **New query**, paste this, hit **Run**:
+
+```sql
+create table public.cloud_backups (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  payload text not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.cloud_backups enable row level security;
+
+create policy "users manage their own backup"
+  on public.cloud_backups for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
+
+## 3. Make the sign-in email show a code
+
+The app signs you in with a 6-digit code typed inside the app (more reliable on iPhone
+home-screen apps than tapping a link).
+
+1. Sidebar → **Authentication** → **Emails** (or *Email Templates*).
+2. Open the **Magic Link** template.
+3. Replace its body with (or just make sure it contains `{{ .Token }}`):
+
+```html
+<h2>Your sign-in code</h2>
+<p>Enter this code in the Finance app: <strong style="font-size:24px">{{ .Token }}</strong></p>
+<p>Or open this link on the same device: <a href="{{ .ConfirmationURL }}">Sign in</a></p>
+```
+
+4. While you're in Authentication → **URL Configuration**, set **Site URL** to
+   `https://ivann9963.github.io/Personal-Finance/` (makes the fallback link land in the app).
+
+## 4. Copy the two values into the app
+
+1. Sidebar → **Project Settings** (gear) → **API** (or *Data API*).
+2. Copy **Project URL** (looks like `https://abcdefgh.supabase.co`).
+3. Copy the **anon / public** API key (long `eyJ…` string — it's safe to be public; the SQL
+   policy above is what protects your row).
+4. In the Finance app: **Settings → Cloud Backup** → paste both → **Save & Continue**.
+
+## 5. Sign in and pick a passphrase
+
+1. Enter your email → **Send Code** → type the 6-digit code from the email.
+2. Choose an **encryption passphrase** (min 8 chars) and **write it down** — it never leaves
+   your device, and without it a cloud backup cannot be decrypted by anyone, including you.
+3. Done. The app backs up automatically a few seconds after every change (toggleable), and
+   **Back Up Now / Restore** buttons live in Settings → Cloud Backup.
+
+## New phone?
+
+Install the app → Settings → Cloud Backup → same project URL + anon key → sign in with the
+same email → **Restore** → enter your passphrase. You're back exactly where you were.
+
+## Notes
+
+- Free tier limits (500 MB database, 50k monthly active users) are absurdly above what one
+  person's ~50 KB backup needs.
+- The backup is a single row per user — each upload replaces the previous one.
+- Your sign-in session lives only on the device; signing out stops backups but deletes nothing.

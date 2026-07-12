@@ -44,6 +44,7 @@ function saveState() {
     const json = JSON.stringify(S);
     if (new Blob([json]).size > 4.2e6) showToast('Storage near limit (4MB)','warning');
     localStorage.setItem(STORAGE_KEY, json);
+    if (typeof scheduleCloudBackup === 'function') scheduleCloudBackup(); // debounced, no-op unless enabled
   } catch(e) { showToast('Failed to save','error'); }
 }
 

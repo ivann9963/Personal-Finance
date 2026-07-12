@@ -6,7 +6,7 @@ const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
 // Order matters: config defines constants/state, the rest depend on it.
-const FILES = ['config.js', 'data.js', 'recurring-insights.js', 'import-export.js', 'plan.js', 'wealth.js', 'accounts.js'];
+const FILES = ['config.js', 'data.js', 'recurring-insights.js', 'import-export.js', 'plan.js', 'wealth.js', 'accounts.js', 'cloud-backup.js'];
 
 function loadApp() {
   const sandbox = {
@@ -18,6 +18,8 @@ function loadApp() {
     navigator: {}, window: {},
     showToast: () => {},                    // UI no-op
     requestAnimationFrame: () => {},
+    // WebCrypto + encoding globals for cloud-backup's encryption (Node ≥20 has them all)
+    crypto, TextEncoder, TextDecoder, btoa, atob, setTimeout, clearTimeout,
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
@@ -31,6 +33,7 @@ function loadApp() {
       mergeSavedState,
       projectWealth, monthsToReach, avgMonthlySavings, netWorthNow, investmentGain, investmentSummary, applyTransferBalances,
       holdingValue, holdingsValue, holdingGain, recordValuePoint, syncHoldingsValue,
+      encryptPayload, decryptPayload, cloudEnabled, cloudActive, scheduleCloudBackup,
       vaultNetFlows, recomputeVaultBalances,
       monthlyEquivalent, recurringExpenseSchedules, nextChargeDate,
       getState: () => S,

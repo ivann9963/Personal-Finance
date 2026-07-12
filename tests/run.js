@@ -395,8 +395,42 @@ suite('holdings — per-position tracking', () => {
   check('sync no-op without holdings',        bare.balance, 777);
 });
 
-// ---- summary ----
-console.log(`\n${C.bold}──────────────────────────────${C.reset}`);
-console.log(`${C.bold}${passed + failed} tests${C.reset}  ${C.green}${passed} passed${C.reset}  ${failed ? C.red : C.gray}${failed} failed${C.reset}`);
-if (failed) { console.log(`\n${C.red}Failures:${C.reset}`); fails.forEach(f => console.log(`  ${C.red}•${C.reset} ${f}`)); }
-process.exit(failed ? 1 : 0);
+// ---- async suites (WebCrypto is promise-based), then the summary ----
+(async () => {
+  suite('cloud backup — encryption round-trip', () => {});
+  {
+    const secret = 'pass-phrase-1';
+    const text = JSON.stringify({transactions:[{merchant:'Lidl', amount:4599}], note:'ünïcödé ✓ 💰'});
+    const enc = await app.encryptPayload(text, secret);
+    check('payload shape', {v:enc.v, hasSalt:typeof enc.salt==='string', hasIv:typeof enc.iv==='string', hasCt:typeof enc.ct==='string'}, {v:1, hasSalt:true, hasIv:true, hasCt:true});
+    check('ciphertext hides plaintext', enc.ct.includes('Lidl') || atob(enc.ct).includes('Lidl'), false);
+    check('decrypts back (incl. unicode)', await app.decryptPayload(enc, secret), text);
+    let wrongFailed = false;
+    try { await app.decryptPayload(enc, 'wrong-pass-99'); } catch(e) { wrongFailed = true; }
+    check('wrong passphrase rejected', wrongFailed, true);
+    let tamperFailed = false;
+    const tampered = {...enc, ct: enc.ct.slice(0,-8) + (enc.ct.slice(-8)==='AAAAAAA=' ? 'BBBBBBB=' : 'AAAAAAA=')};
+    try { await app.decryptPayload(tampered, secret); } catch(e) { tamperFailed = true; }
+    check('tampered ciphertext rejected', tamperFailed, true);
+    const enc2 = await app.encryptPayload(text, secret);
+    check('fresh salt/iv each time', enc2.salt !== enc.salt && enc2.iv !== enc.iv, true);
+  }
+
+  suite('cloud backup — gating', () => {
+    freshState();
+    check('disabled without config', app.cloudEnabled(), false);
+    check('inactive without config', app.cloudActive(), false);
+    let threw = false;
+    try { app.scheduleCloudBackup(); } catch(e) { threw = true; }
+    check('schedule is a safe no-op when unconfigured', threw, false);
+    freshState({ settings: {...app.defaultState().settings, cloud: {url:'https://x.supabase.co', anonKey:'k'.repeat(40)}} });
+    check('enabled with url+key', app.cloudEnabled(), true);
+    check('but not active without session+passphrase', app.cloudActive(), false);
+  });
+
+  // ---- summary ----
+  console.log(`\n${C.bold}──────────────────────────────${C.reset}`);
+  console.log(`${C.bold}${passed + failed} tests${C.reset}  ${C.green}${passed} passed${C.reset}  ${failed ? C.red : C.gray}${failed} failed${C.reset}`);
+  if (failed) { console.log(`\n${C.red}Failures:${C.reset}`); fails.forEach(f => console.log(`  ${C.red}•${C.reset} ${f}`)); }
+  process.exit(failed ? 1 : 0);
+})();

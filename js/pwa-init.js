@@ -46,5 +46,6 @@ function init() {
     renderDashboard(); _tabsInit['dashboard']=true;
   }
   if (typeof initHaptics === 'function') initHaptics(); // overlay haptic switches on nav tabs + buttons (+ watch for new ones)
+  if (typeof initCloudBackup === 'function') initCloudBackup(); // adopt magic-link session tokens if present in the URL hash
 }
 init();
