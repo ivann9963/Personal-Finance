@@ -13,7 +13,11 @@ function loadSampleData() {
       const dt = new Date(now); dt.setDate(dt.getDate()+d);
       return {date: dt.toISOString().slice(0,10), value: [500000,504500,498200,512000,521500,532500][i]};
     });
-    S.accounts.push({id:'sample-acc4',name:'Index Funds',type:'investment',balance:532500,currency:'EUR',institution:'Trade Republic',convertedBalance:532500,costBasis:500000,valueHistory:invHist});
+    S.accounts.push({id:'sample-acc4',name:'Index Funds',type:'investment',balance:532500,currency:'EUR',institution:'Trade Republic',convertedBalance:532500,costBasis:500000,valueHistory:invHist,
+      holdings:[ // sum matches balance (40×105 + 15×75 = 5,325); one winner + one loser for the demo
+        {id:'sample-h1',name:'VWCE',qty:40,price:10500,avgCost:9800},
+        {id:'sample-h2',name:'AAPL',qty:15,price:7500,avgCost:8000},
+      ]});
   }
   // Recurring schedules
   const rent_id='sample-rent', spotify_id='sample-spotify', netflix_id='sample-netflix';

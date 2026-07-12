@@ -79,6 +79,38 @@ function investmentSummary() {
   return { count: inv.length, basis, value, gain, pct: basis > 0 ? (gain / basis) * 100 : 0 };
 }
 
+// --- Holdings (individual positions inside an investment account) ---
+// h = {id, name, qty (float units), price (cents/unit), avgCost (cents/unit, optional)}.
+// When an account has holdings, its balance is DERIVED: Σ qty×price (kept via syncHoldingsValue).
+function holdingValue(h) { return Math.round(h.qty * h.price); }
+function holdingsValue(acc) { return (acc.holdings||[]).reduce((s,h)=>s+holdingValue(h),0); }
+// Per-position gain vs your average buy price (null when avgCost wasn't provided).
+function holdingGain(h) {
+  if (h.avgCost == null) return null;
+  const basis = Math.round(h.qty * h.avgCost);
+  const gain = holdingValue(h) - basis;
+  return { gain, pct: basis > 0 ? (gain / basis) * 100 : 0 };
+}
+// Append a point to the account's value history; a second update the same day overwrites
+// instead of appending (updating prices twice a day shouldn't spam the chart).
+function recordValuePoint(acc, value) {
+  acc.valueHistory = acc.valueHistory || [];
+  const todayStr = new Date().toISOString().slice(0,10);
+  const last = acc.valueHistory[acc.valueHistory.length-1];
+  if (last && last.date === todayStr) last.value = value;
+  else acc.valueHistory.push({date: todayStr, value});
+}
+// Re-derive an account's balance from its holdings after any holding/price change.
+function syncHoldingsValue(acc) {
+  if (!(acc.holdings||[]).length) return;
+  const v = holdingsValue(acc);
+  acc.balance = v;
+  const c = defaultConvert(v, acc.currency);
+  acc.convertedBalance = c.ok ? c.amount : v;
+  if (acc.costBasis == null) acc.costBasis = v;
+  recordValuePoint(acc, v);
+}
+
 // --- Future Wealth sheet ---
 const WEALTH_MILESTONES = [1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000, 200000000]; // cents
 function wealthPlan() {

@@ -362,6 +362,39 @@ suite('investment tracking — cost basis vs value', () => {
   check('netWorthNow sums accounts', app.netWorthNow(), app.getState().accounts.reduce((s,a)=>s+a.balance,0));
 });
 
+suite('holdings — per-position tracking', () => {
+  const h1 = { id:'h1', name:'VWCE', qty:12.5, price:11000, avgCost:10000 };
+  const h2 = { id:'h2', name:'BTC',  qty:0.05, price:9000000 }; // no avgCost
+  check('holdingValue = qty×price (rounded cents)', app.holdingValue(h1), 137500);
+  check('fractional qty',                app.holdingValue(h2), 450000);
+  check('holdingGain vs avg buy price',  app.holdingGain(h1), {gain:12500, pct:10});
+  check('no avgCost → null gain',        app.holdingGain(h2), null);
+  check('zero-basis guard',              app.holdingGain({qty:1, price:100, avgCost:0}), {gain:100, pct:0});
+
+  freshState({ accounts: [
+    { id:'inv', name:'Broker', type:'investment', balance:1, currency:'EUR', costBasis:500000, holdings:[h1,h2], valueHistory:[{date:'2026-01-01', value:1}] },
+  ]});
+  const acc = app.getState().accounts[0];
+  app.syncHoldingsValue(acc);
+  check('sync derives balance from holdings', acc.balance, 587500);
+  check('sync appends history',               acc.valueHistory.length, 2);
+  check('history point = holdings sum',       acc.valueHistory[1].value, 587500);
+  check('costBasis untouched by sync',        acc.costBasis, 500000);
+  // same-day second sync overwrites, doesn't append
+  acc.holdings[0].price = 12000;
+  app.syncHoldingsValue(acc);
+  check('same-day sync overwrites',           acc.valueHistory.length, 2);
+  check('overwritten value',                  acc.valueHistory[1].value, Math.round(12.5*12000) + 450000);
+  // recordValuePoint used directly
+  const a2 = { valueHistory: [] };
+  app.recordValuePoint(a2, 100); app.recordValuePoint(a2, 200);
+  check('recordValuePoint same-day dedupe',   a2.valueHistory.map(p=>p.value), [200]);
+  // account with no holdings: sync is a no-op
+  const bare = { balance: 777, valueHistory: [] };
+  app.syncHoldingsValue(bare);
+  check('sync no-op without holdings',        bare.balance, 777);
+});
+
 // ---- summary ----
 console.log(`\n${C.bold}──────────────────────────────${C.reset}`);
 console.log(`${C.bold}${passed + failed} tests${C.reset}  ${C.green}${passed} passed${C.reset}  ${failed ? C.red : C.gray}${failed} failed${C.reset}`);

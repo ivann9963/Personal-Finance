@@ -120,10 +120,13 @@ function openAccDetail(id) {
       ${invSection}
       ${goalSection}
       <div style="display:flex;gap:10px;margin-bottom:20px">
-        ${acc.type==='investment'?`<button class="btn-primary" style="flex:1" onclick="openUpdateValueSheet('${id}')">Update Value</button>`:''}
+        ${acc.type==='investment'?((acc.holdings||[]).length
+          ?`<button class="btn-primary" style="flex:1" onclick="openUpdatePricesSheet('${id}')">Update Prices</button>`
+          :`<button class="btn-primary" style="flex:1" onclick="openUpdateValueSheet('${id}')">Update Value</button>`):''}
         <button class="btn-secondary" style="flex:1" onclick="openEditAccountSheet('${id}')">Edit</button>
         <button class="btn-danger" style="flex:1" onclick="deleteAccount('${id}');closeTopSheet()">Delete</button>
       </div>
+      ${acc.type==='investment'?holdingsListHTML(acc):''}
       <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Recent Transactions</div>
       ${txRows||`<div style="color:var(--text-secondary);font-size:14px;padding:16px 0">No transactions</div>`}
     </div>`);
@@ -179,13 +182,108 @@ function saveInvestmentValue(id) {
   const c = defaultConvert(value, acc.currency);
   acc.convertedBalance = c.ok ? c.amount : value;
   if (acc.costBasis == null) acc.costBasis = value; // first tracking point: gain starts at 0
-  acc.valueHistory = acc.valueHistory||[];
-  const todayStr = new Date().toISOString().slice(0,10);
-  const last = acc.valueHistory[acc.valueHistory.length-1];
-  if (last && last.date === todayStr) last.value = value; // updating twice a day shouldn't spam history
-  else acc.valueHistory.push({date:todayStr, value});
+  recordValuePoint(acc, value);
   saveState(); closeTopSheet2(); openAccDetail(id); renderCurrentTab();
   showToast('Value updated','success');
+}
+// --- Holdings UI (positions inside an investment account) ---
+function holdingsListHTML(acc) {
+  const rows = (acc.holdings||[]).map(h=>{
+    const hg = holdingGain(h);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer" onclick="openHoldingSheet('${acc.id}','${h.id}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">${escHtml(h.name)}</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">${h.qty} × ${formatCurrency(h.price,acc.currency)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px">${formatCurrency(holdingValue(h),acc.currency)}</div>
+        ${hg?`<div style="font-size:11.5px;font-weight:600;color:${hg.gain>=0?'var(--green)':'var(--red)'}">${hg.gain>=0?'+':''}${formatCurrency(hg.gain,acc.currency)} · ${hg.pct>=0?'+':''}${hg.pct.toFixed(1)}%</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-bottom:16px">
+    <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Holdings</div>
+    ${rows||`<div style="font-size:13px;color:var(--text-secondary);padding:8px 0">Track individual positions (ETFs, stocks, crypto) — the account value follows their prices.</div>`}
+    <button class="btn-secondary" style="width:100%;margin-top:10px;padding:10px" onclick="openHoldingSheet('${acc.id}')">＋ Add holding</button>
+  </div>`;
+}
+// Add or edit one position. Prices are per unit, in the ACCOUNT's currency.
+function openHoldingSheet(accId, holdingId) {
+  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
+  const h = (acc.holdings||[]).find(x=>x.id===holdingId);
+  openSheet2('holding',`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">${h?'Edit Holding':'Add Holding'}</div>
+    <div class="sheet-body">
+      <div class="form-field"><label class="form-label">Name / Ticker</label>
+        <input id="hold-name" class="form-input" type="text" placeholder="e.g. VWCE, Bitcoin" value="${escHtml(h?.name||'')}"></div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Quantity</label>
+          <input id="hold-qty" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="e.g. 12.5" value="${h?h.qty:''}"></div>
+        <div class="form-field"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
+          <input id="hold-price" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
+      </div>
+      <div class="form-field"><label class="form-label">Avg buy price / unit (optional — enables gain per holding)</label>
+        <input id="hold-avgcost" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="what you paid on average" value="${h&&h.avgCost!=null?(h.avgCost/100).toFixed(2):''}"></div>
+      <div style="height:8px"></div>
+      <button class="btn-primary" onclick="saveHolding('${accId}','${holdingId||''}')">Save Holding</button>
+      ${h?`<button class="btn-danger" style="width:100%;margin-top:10px" onclick="deleteHolding('${accId}','${holdingId}')">Delete Holding</button>`:''}
+    </div>`);
+}
+function saveHolding(accId, holdingId) {
+  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
+  const name = document.getElementById('hold-name').value.trim();
+  const qty = parseFloat(document.getElementById('hold-qty').value);
+  const price = parseFloat(document.getElementById('hold-price').value);
+  const avgStr = document.getElementById('hold-avgcost').value;
+  const avgCost = avgStr!=='' && !isNaN(parseFloat(avgStr)) ? Math.round(parseFloat(avgStr)*100) : null;
+  if (!name) { showToast('Enter a name','error'); return; }
+  if (isNaN(qty) || qty<=0 || isNaN(price) || price<0) { showToast('Enter quantity and price','error'); return; }
+  acc.holdings = acc.holdings||[];
+  const h = acc.holdings.find(x=>x.id===holdingId);
+  if (h) Object.assign(h, {name, qty, price:Math.round(price*100), avgCost});
+  else acc.holdings.push({id:gid(), name, qty, price:Math.round(price*100), avgCost});
+  syncHoldingsValue(acc);
+  saveState(); closeTopSheet2(); openAccDetail(accId); renderCurrentTab();
+  showToast(`Holding ${h?'updated':'added'}`,'success');
+}
+function deleteHolding(accId, holdingId) {
+  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
+  confirmDialog({title:'Delete holding?', message:'The account value will drop by its worth.', confirmLabel:'Delete', danger:true}, ()=>{
+    acc.holdings = (acc.holdings||[]).filter(h=>h.id!==holdingId);
+    if (acc.holdings.length) syncHoldingsValue(acc);
+    saveState(); closeTopSheet2(); openAccDetail(accId); renderCurrentTab();
+    showToast('Holding deleted','success');
+  });
+}
+// The holdings equivalent of Update Value: one price field per position, saved together.
+function openUpdatePricesSheet(accId) {
+  const acc = S.accounts.find(a=>a.id===accId); if (!acc || !(acc.holdings||[]).length) return;
+  const rows = acc.holdings.map(h=>`
+    <div class="form-field"><label class="form-label">${escHtml(h.name)} — ${h.qty} units (${escHtml(acc.currency)}/unit)</label>
+      <input class="form-input mono hold-price-inp" data-hid="${h.id}" type="number" inputmode="decimal" step="any" value="${(h.price/100).toFixed(2)}"></div>`).join('');
+  openSheet2('update-prices',`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Update Prices</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">Enter today's price per unit for each holding — the account value updates from these.</div>
+      ${rows}
+      <button class="btn-primary" onclick="saveUpdatedPrices('${accId}')">Save Prices</button>
+    </div>`);
+}
+function saveUpdatedPrices(accId) {
+  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
+  let bad = false;
+  document.querySelectorAll('.hold-price-inp').forEach(inp=>{
+    const v = parseFloat(inp.value);
+    if (isNaN(v) || v<0) { bad = true; return; }
+    const h = acc.holdings.find(x=>x.id===inp.dataset.hid);
+    if (h) h.price = Math.round(v*100);
+  });
+  if (bad) { showToast('Check the prices','error'); return; }
+  syncHoldingsValue(acc);
+  saveState(); closeTopSheet2(); openAccDetail(accId); renderCurrentTab();
+  showToast('Prices updated','success');
 }
 function openAddAccountSheet(prefill={}) {
   const typeOpts = ACCOUNT_TYPES.map(t=>`<option value="${t.id}"${prefill.type===t.id?' selected':''}>${t.emoji} ${t.name}</option>`).join('');
@@ -244,6 +342,7 @@ function saveAccount(editId) {
         } else if (balance !== prev.balance) { // balance edited by hand = a value correction, not new money
           next.valueHistory = [...(prev.valueHistory||[]), {date:todayStr, value:balance}];
         }
+        if ((next.holdings||[]).length) syncHoldingsValue(next); // with holdings, balance is derived — a typed balance can't stick
       }
       S.accounts[idx]=next;
     }

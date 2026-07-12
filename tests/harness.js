@@ -30,6 +30,7 @@ function loadApp() {
       classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
       mergeSavedState,
       projectWealth, monthsToReach, avgMonthlySavings, netWorthNow, investmentGain, investmentSummary, applyTransferBalances,
+      holdingValue, holdingsValue, holdingGain, recordValuePoint, syncHoldingsValue,
       vaultNetFlows, recomputeVaultBalances,
       monthlyEquivalent, recurringExpenseSchedules, nextChargeDate,
       getState: () => S,
