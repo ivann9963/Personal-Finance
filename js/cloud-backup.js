@@ -172,12 +172,18 @@ async function cloudRestore() {
     const parsed = JSON.parse(plain);
     const txCount = parsed.transactions?.length ?? 0;
     const when = new Date(row.updated_at).toLocaleString();
-    confirmDialog({title:'Restore from cloud?', message:`This replaces your current data with the cloud backup from ${when} (${txCount} transactions).`, confirmLabel:'Restore', danger:true}, ()=>{
+    // If this device has edits that were never backed up, restoring an older cloud copy would
+    // silently drop them — say so. (Signature is only known after a backup/restore this session,
+    // so the warning appears exactly when there's a real local-vs-cloud divergence to lose.)
+    const localDirty = _lastCloudSig !== null && cloudStateSignature() !== _lastCloudSig;
+    const warn = localDirty ? ' ⚠️ You have changes on this device that are newer than any backup — they will be lost.' : '';
+    confirmDialog({title:'Restore from cloud?', message:`This replaces your current data with the cloud backup from ${when} (${txCount} transactions).${warn}`, confirmLabel:'Restore', danger:true}, ()=>{
       const keepCloud = cloudCfg(); // session/config on THIS device wins over what's in the blob
       S = mergeSavedState(parsed);
       S.onboardingComplete = true;
       S.settings.cloud = {...(S.settings.cloud||{}), ...keepCloud};
       saveState(); applyTheme(); generateRecurring();
+      _lastCloudSig = cloudStateSignature(); // we now match the cloud copy — don't re-upload it as a "change"
       const ob = document.getElementById('onboarding');
       if (ob && !ob.classList.contains('hidden')) enterApp();
       else renderCurrentTab();
@@ -197,7 +203,23 @@ function scheduleCloudBackup() {
   clearTimeout(_cloudTimer);
   _cloudTimer = setTimeout(()=>cloudBackupNow(true), 4000);
 }
-function initCloudBackup() { try { cloudHandleHash(); } catch(e) {} }
+// Best-effort backup when the app is being hidden/closed: the 4s auto-backup debounce means a
+// last edit made right before backgrounding would otherwise never reach the cloud. Fires an
+// immediate backup if there are unsaved-to-cloud changes. It may not finish if the OS freezes
+// the page, but it usually gets the request out; the next launch backs up regardless.
+function cloudFlushNow() {
+  if (!cloudActive() || _cloudBusy) return;
+  if (_lastCloudSig !== null && cloudStateSignature() === _lastCloudSig) return; // nothing pending
+  clearTimeout(_cloudTimer);
+  cloudBackupNow(true);
+}
+function initCloudBackup() {
+  try { cloudHandleHash(); } catch(e) {}
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') cloudFlushNow(); });
+    window.addEventListener('pagehide', cloudFlushNow);
+  }
+}
 
 // --- Settings UI ---
 function openCloudBackupSheet() {
