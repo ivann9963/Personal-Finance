@@ -78,12 +78,22 @@ async function cloudToken() {
     return data.access_token;
   } catch(e) { setCloudSession(null); throw new Error('Session expired — sign in again'); }
 }
-async function cloudRequestCode(email) {
-  await _gotrue('otp', {email, create_user:true});
-}
-async function cloudVerifyCode(email, code) {
-  const data = await _gotrue('verify', {type:'email', email, token:code.trim()});
-  _adoptSession(data);
+// Email + password auth. Chosen over OTP codes because Supabase's built-in mailer no longer
+// allows editing email templates (the 6-digit code can't be shown without custom SMTP), and
+// password sign-in needs no email at all once "Confirm email" is off in the project.
+// Returns 'signed-in' | 'signed-up' | 'confirm-email' (project still requires confirmation).
+async function cloudPasswordAuth(email, password) {
+  try {
+    const data = await _gotrue('token?grant_type=password', {email, password});
+    _adoptSession(data);
+    return 'signed-in';
+  } catch(e) {
+    // No account yet? Try to create one. (A wrong password for an EXISTING account also lands
+    // here — signup then fails with "already registered", surfaced to the user below.)
+    const su = await _gotrue('signup', {email, password});
+    if (su.access_token) { _adoptSession(su); return 'signed-up'; }
+    return 'confirm-email';
+  }
 }
 // Magic-link fallback: adopt #access_token=…&refresh_token=… if the user tapped the email link.
 function cloudHandleHash() {
@@ -189,16 +199,14 @@ function openCloudBackupSheet() {
   } else if (!cloudSignedIn()) {
     body = `
       <div style="font-size:13.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px">
-        Sign in with your email — we'll send a one-time code. The same email later restores your data on a new phone.
+        Sign in — or create the account on first use, same button. These credentials later restore your data on a new phone.
       </div>
       <div class="form-field"><label class="form-label">Email</label>
         <input id="cloud-email" class="form-input" type="email" placeholder="you@example.com" value="${escHtml(c?.email||'')}"></div>
-      <button class="btn-primary" id="cloud-send-btn" onclick="cloudSendCode()">Send Code</button>
-      <div id="cloud-code-wrap" style="display:none;margin-top:14px">
-        <div class="form-field"><label class="form-label">6-digit code from the email</label>
-          <input id="cloud-code" class="form-input mono" type="text" inputmode="numeric" placeholder="123456"></div>
-        <button class="btn-primary" onclick="cloudDoVerify()">Verify &amp; Sign In</button>
-      </div>
+      <div class="form-field"><label class="form-label">Password</label>
+        <input id="cloud-password" class="form-input" type="password" placeholder="min 6 characters"></div>
+      <button class="btn-primary" id="cloud-signin-btn" onclick="cloudDoSignIn()">Sign In / Create Account</button>
+      <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5;margin-top:12px">Requires "Confirm email" to be OFF in your Supabase project (step 3 of the setup guide).</div>
       <button class="btn-secondary" style="width:100%;margin-top:14px" onclick="resetCloudConfig()">Change project settings</button>`;
   } else if (!cloudPass()) {
     body = `
@@ -252,29 +260,28 @@ function resetCloudConfig() {
   S.settings.cloud = null; setCloudSession(null); localStorage.removeItem(CLOUD_PASS_KEY);
   saveState(); openCloudBackupSheet();
 }
-async function cloudSendCode() {
+async function cloudDoSignIn() {
   const email = document.getElementById('cloud-email').value.trim();
+  const password = document.getElementById('cloud-password').value;
   if (!/.+@.+\..+/.test(email)) { showToast('Enter a valid email','error'); return; }
-  const btn = document.getElementById('cloud-send-btn');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  if (password.length < 6) { showToast('Password needs at least 6 characters','error'); return; }
+  const btn = document.getElementById('cloud-signin-btn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
   try {
-    await cloudRequestCode(email);
+    const outcome = await cloudPasswordAuth(email, password);
     S.settings.cloud = {...cloudCfg(), email}; saveState();
-    document.getElementById('cloud-code-wrap').style.display = '';
-    btn.textContent = 'Resend Code';
-    showToast('Code sent — check your email','success');
-  } catch(e) { showToast(`Could not send code: ${e.message}`,'error'); btn.textContent = 'Send Code'; }
-  btn.disabled = false;
-}
-async function cloudDoVerify() {
-  const email = (cloudCfg()?.email) || document.getElementById('cloud-email').value.trim();
-  const code = document.getElementById('cloud-code').value;
-  if (!code.trim()) { showToast('Enter the code from the email','error'); return; }
-  try {
-    await cloudVerifyCode(email, code);
-    showToast('Signed in','success');
+    if (outcome === 'confirm-email') {
+      showToast('Almost there — tap the link in the confirmation email (or turn off "Confirm email" in Supabase and sign in again)','warning',6000);
+      btn.disabled = false; btn.textContent = 'Sign In / Create Account';
+      return;
+    }
+    showToast(outcome === 'signed-up' ? 'Account created — signed in' : 'Signed in','success');
     openCloudBackupSheet();
-  } catch(e) { showToast(`Sign-in failed: ${e.message}`,'error'); }
+  } catch(e) {
+    const msg = /already registered/i.test(e.message) ? 'Wrong password for this email' : e.message;
+    showToast(`Sign-in failed: ${msg}`,'error');
+    btn.disabled = false; btn.textContent = 'Sign In / Create Account';
+  }
 }
 function saveCloudPass() {
   const p1 = document.getElementById('cloud-pass').value;

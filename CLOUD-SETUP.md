@@ -30,23 +30,19 @@ create policy "users manage their own backup"
   with check (auth.uid() = user_id);
 ```
 
-## 3. Make the sign-in email show a code
+## 3. Turn off email confirmation
 
-The app signs you in with a 6-digit code typed inside the app (more reliable on iPhone
-home-screen apps than tapping a link).
+The app signs you in with **email + password** — no emails involved. (Supabase's built-in
+mailer no longer lets you customize sign-in emails without setting up your own SMTP, so
+code-by-email flows are impractical on the free defaults.) One toggle makes password
+sign-up work instantly:
 
-1. Sidebar → **Authentication** → **Emails** (or *Email Templates*).
-2. Open the **Magic Link** template.
-3. Replace its body with (or just make sure it contains `{{ .Token }}`):
+1. Sidebar → **Authentication** → under *Configuration* → **Sign In / Providers**.
+2. Open the **Email** provider.
+3. Turn **OFF** “Confirm email” → **Save**.
 
-```html
-<h2>Your sign-in code</h2>
-<p>Enter this code in the Finance app: <strong style="font-size:24px">{{ .Token }}</strong></p>
-<p>Or open this link on the same device: <a href="{{ .ConfirmationURL }}">Sign in</a></p>
-```
-
-4. While you're in Authentication → **URL Configuration**, set **Site URL** to
-   `https://ivann9963.github.io/Personal-Finance/` (makes the fallback link land in the app).
+Optional but recommended: under **URL Configuration**, set **Site URL** to
+`https://ivann9963.github.io/Personal-Finance/` (any auth links then land in the app).
 
 ## 4. Copy the two values into the app
 
@@ -58,16 +54,20 @@ home-screen apps than tapping a link).
 
 ## 5. Sign in and pick a passphrase
 
-1. Enter your email → **Send Code** → type the 6-digit code from the email.
+1. Enter your email and choose a **password** → **Sign In / Create Account** (first use
+   creates the account, later uses sign in — same button).
 2. Choose an **encryption passphrase** (min 8 chars) and **write it down** — it never leaves
    your device, and without it a cloud backup cannot be decrypted by anyone, including you.
+   (Yes, that's two secrets: the password unlocks your *account*; the passphrase unlocks
+   your *data*. The server knows neither your data nor the passphrase.)
 3. Done. The app backs up automatically a few seconds after every change (toggleable), and
    **Back Up Now / Restore** buttons live in Settings → Cloud Backup.
 
 ## New phone?
 
 Install the app → Settings → Cloud Backup → same project URL + anon key → sign in with the
-same email → **Restore** → enter your passphrase. You're back exactly where you were.
+same email + password → **Restore** → enter your passphrase. You're back exactly where you
+were.
 
 ## Notes
 
