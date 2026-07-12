@@ -247,6 +247,51 @@ suite('recurringExpenseSchedules — only active expenses', () => {
   check('correct one kept', subs[0].id, 'a');
 });
 
+suite('JSON backup round-trip — export → restore keeps everything', () => {
+  // Build a state exercising every collection, serialize it exactly like exportJSON,
+  // then merge it back exactly like importJSON — nothing may be lost or mangled.
+  const orig = app.defaultState();
+  orig.accounts = [
+    {id:'a1', name:'Main', type:'checking', balance:123456, currency:'EUR', convertedBalance:123456, goalAmount:500000},
+    {id:'v1', name:'Vault', type:'savings', balance:5000, currency:'EUR', isVault:true, vaultName:'Vault'},
+  ];
+  orig.transactions = [
+    {id:'t1', type:'expense', date:'2026-07-01', merchant:'Lidl', category:'groceries', originalAmount:4599, originalCurrency:'EUR', convertedAmount:4599, accountId:'a1', tags:['weekly','food']},
+    {id:'t2', type:'transfer', date:'2026-07-02', merchant:'Transfer', category:'other', originalAmount:10000, originalCurrency:'EUR', convertedAmount:10000, accountId:'a1', toAccountId:'v1'},
+  ];
+  orig.budgets = [{id:'b1', category:'groceries', amount:30000}];
+  orig.recurringSchedules = [{id:'r1', type:'expense', active:true, merchant:'Netflix', amount:1299, currency:'EUR', frequency:'monthly', startDate:'2026-01-05', category:'subscriptions'}];
+  orig.categories.push({id:'custom1', name:'Hobbies', emoji:'🎨', color:'#123456'});
+  orig.exchangeRates = {USD_EUR: 0.92};
+  orig.merchantCategories = {'Lidl':'groceries'};
+  orig.settings = {defaultCurrency:'BGN', theme:'light', firstDayOfWeek:'sunday', lastBackupAt: 1750000000000, createdAt: 1749000000000, analyticsSort:{heatmap:'name'}};
+  orig.onboardingComplete = true;
+  orig.lastImport = {batch:'batch1', count:2, at:1750000000000};
+
+  const restored = app.mergeSavedState(JSON.parse(JSON.stringify(orig)));
+  check('accounts preserved',          restored.accounts, orig.accounts);
+  check('transactions (incl. tags)',   restored.transactions, orig.transactions);
+  check('budgets preserved',           restored.budgets, orig.budgets);
+  check('recurring preserved',         restored.recurringSchedules, orig.recurringSchedules);
+  check('custom category preserved',   restored.categories.find(c=>c.id==='custom1'), orig.categories.find(c=>c.id==='custom1'));
+  check('category count preserved',    restored.categories.length, orig.categories.length);
+  check('exchange rates preserved',    restored.exchangeRates, orig.exchangeRates);
+  check('learned merchants preserved', restored.merchantCategories, orig.merchantCategories);
+  check('settings preserved',          restored.settings, orig.settings);
+  check('lastImport preserved',        restored.lastImport, orig.lastImport);
+  check('onboardingComplete kept',     restored.onboardingComplete, true);
+});
+
+suite('mergeSavedState — old backups gain new defaults', () => {
+  // A backup from an older app version lacks fields added since — they must fill in, not be undefined.
+  const merged = app.mergeSavedState({ transactions: [{id:'t1'}], settings: {defaultCurrency:'USD'} });
+  check('missing collections default', Array.isArray(merged.accounts) && Array.isArray(merged.budgets) && Array.isArray(merged.recurringSchedules), true);
+  check('categories default in',       merged.categories.length > 0, true);
+  check('kept old defaultCurrency',    merged.settings.defaultCurrency, 'USD');
+  check('new settings defaults fill',  merged.settings.theme, 'dark');
+  check('data kept',                   merged.transactions, [{id:'t1'}]);
+});
+
 suite('learnMerchantCategory — guards', () => {
   freshState();
   app.learnMerchantCategory('Local Bakery', 'food');

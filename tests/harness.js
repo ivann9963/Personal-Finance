@@ -28,6 +28,7 @@ function loadApp() {
     ;globalThis.__app = {
       parseDateStr, parseAmountStr, mapCategoryValue, inferCategoryFromMerchant,
       classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
+      mergeSavedState,
       vaultNetFlows, recomputeVaultBalances,
       monthlyEquivalent, recurringExpenseSchedules, nextChargeDate,
       getState: () => S,

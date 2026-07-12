@@ -50,9 +50,10 @@ function renderObStep() {
       <div style="font-size:56px;margin-bottom:16px">🚀</div>
       <div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot active"></div>`).join('')}</div>
       <div class="ob-title">How do you want to start?</div>
-      <div class="ob-sub">Import your real transactions from your bank, explore with sample data, or start with a clean slate.</div>
+      <div class="ob-sub">Import your real transactions from your bank, restore a backup file, explore with sample data, or start with a clean slate.</div>
       <div class="ob-actions">
         <button class="btn-primary" onclick="obImportCSV()">📥 Import from my bank (CSV)</button>
+        <button class="btn-secondary" onclick="pickImportJSON()">📂 Restore from backup (JSON)</button>
         <button class="btn-secondary" onclick="obLoadSample()">🎲 Load sample data</button>
         <button class="btn-secondary" onclick="obFinish()">Start fresh</button>
       </div>
@@ -87,12 +88,20 @@ function obFinish() {
   S.onboardingComplete = true;
   saveState();
   applyTheme();
+  enterApp();
+}
+// Switch from the onboarding screen to the main app and render the dashboard fresh.
+// Also used by importJSON() when a backup is restored from the welcome screen.
+function enterApp() {
   document.getElementById('onboarding').classList.add('hidden');
   document.getElementById('main').classList.remove('hidden');
   document.getElementById('fab').classList.remove('hidden');
+  // Hide any tab left visible from before onboarding was (re-)entered via Clear All Data.
+  TAB_ORDER.forEach(t => { const el=document.getElementById('tab-'+t); if(el) el.style.display = t==='dashboard'?'':'none'; });
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab==='dashboard'));
+  document.getElementById('header-title').textContent = 'Finance';
   _tabsInit = {};
   _currentTab = 'dashboard'; // ensure current tab is set before render
-  document.getElementById('tab-dashboard').style.display = '';
   renderDashboard();
   _tabsInit['dashboard'] = true;
 }

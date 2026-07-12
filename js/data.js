@@ -26,12 +26,16 @@ function learnMerchantCategory(merchant, category) {
   if (!S.merchantCategories) S.merchantCategories = {};
   S.merchantCategories[merchant] = category;
 }
+// Merge a parsed state object (localStorage or a backup file) over defaults, so fields
+// added to the app after the data was saved get sensible values instead of undefined.
+function mergeSavedState(p) {
+  return {...defaultState(), ...p, settings: {...defaultState().settings, ...(p.settings||{})}};
+}
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
-    const p = JSON.parse(raw);
-    return {...defaultState(), ...p, settings: {...defaultState().settings, ...(p.settings||{})}};
+    return mergeSavedState(JSON.parse(raw));
   } catch(e) { return defaultState(); }
 }
 function saveState() {

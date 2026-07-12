@@ -74,9 +74,11 @@ function openSettings() {
       ${settingsRow('openRecurringManager()', '🔄', 'Recurring &amp; Subscriptions', 'Manage scheduled payments')}
 
       <div class="settings-grp-title">Import &amp; Export</div>
+      ${settingsRow('exportJSON()', '💾', 'Export backup (JSON)', 'Everything: accounts, transactions, budgets, settings')}
+      ${settingsRow('pickImportJSON()', '📂', 'Restore backup (JSON)', 'Load a backup file — puts you right back where you were')}
       ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV)', 'Revolut, N26, Wise, Monzo…')}
       ${lastImportCount ? settingsRow('undoLastImport()', '↩️', 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
-      ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets')}
+      ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets — cannot be re-imported with full fidelity')}
 
       <div class="settings-grp-title">Danger Zone</div>
       ${!hasTx ? settingsRow('loadSampleData()', '🎲', 'Load Sample Data', 'Fills the app with demo data to explore') : ''}

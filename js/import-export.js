@@ -56,10 +56,14 @@ function importJSON(file) {
       const txCount = parsed.transactions?.length ?? 0;
       const accCount = parsed.accounts?.length ?? 0;
       confirmDialog({title:'Restore from backup?', message:`This replaces your current data with ${accCount} account${accCount!==1?'s':''} and ${txCount} transaction${txCount!==1?'s':''} from the file.`, confirmLabel:'Restore', danger:true}, ()=>{
-        S = {...defaultState(), ...parsed, settings:{...defaultState().settings,...(parsed.settings||{})}};
-        saveState(); applyTheme(); generateRecurring(); renderCurrentTab();
+        S = mergeSavedState(parsed);
+        S.onboardingComplete = true; // a restored backup means the user already has real data
+        saveState(); applyTheme(); generateRecurring();
+        const ob = document.getElementById('onboarding');
+        if (ob && !ob.classList.contains('hidden')) enterApp(); // restoring from the welcome screen
+        else renderCurrentTab();
         if (typeof refreshSettingsIfOpen === 'function') refreshSettingsIfOpen();
-        showToast(`Imported ${txCount} transactions`,'success');
+        showToast(`Restored ${txCount} transactions`,'success');
       });
     } catch(e) { showToast('Invalid JSON file','error'); }
   };
