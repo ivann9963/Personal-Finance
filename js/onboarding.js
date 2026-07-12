@@ -52,7 +52,7 @@ function renderObStep() {
       <div class="ob-title">How do you want to start?</div>
       <div class="ob-sub">Import your real transactions from your bank, restore a backup file, explore with sample data, or start with a clean slate.</div>
       <div class="ob-actions">
-        <button class="btn-primary" onclick="obImportCSV()">📥 Import from my bank (CSV)</button>
+        <button class="btn-primary" onclick="obImportCSV()">📥 Import from my bank (CSV / Excel)</button>
         <button class="btn-secondary" onclick="pickImportJSON()">📂 Restore from backup (JSON)</button>
         <button class="btn-secondary" onclick="obLoadSample()">🎲 Load sample data</button>
         <button class="btn-secondary" onclick="obFinish()">Start fresh</button>

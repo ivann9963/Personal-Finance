@@ -34,6 +34,7 @@ function loadApp() {
       projectWealth, monthsToReach, avgMonthlySavings, netWorthNow, investmentGain, investmentSummary, applyTransferBalances,
       holdingValue, holdingsValue, holdingGain, recordValuePoint, syncHoldingsValue,
       encryptPayload, decryptPayload, cloudEnabled, cloudActive, scheduleCloudBackup,
+      gridToCSVData, autoMapColumns,
       vaultNetFlows, recomputeVaultBalances,
       monthlyEquivalent, recurringExpenseSchedules, nextChargeDate,
       getState: () => S,

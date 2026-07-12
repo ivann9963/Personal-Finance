@@ -31,7 +31,7 @@ function renderDashboard() {
       <div style="display:flex;flex-direction:column;gap:10px;padding:0 16px">
         ${getStartedRow('openAddTxSheet()', '➕', 'Add your first transaction', 'Log what you spent or earned')}
         ${getStartedRow('openAddAccountSheet()', '🏦', 'Add an account', 'Track balances and net worth')}
-        ${getStartedRow('dashboardImport()', '📥', 'Import from your bank', 'Revolut, N26, Wise, Monzo…')}
+        ${getStartedRow('dashboardImport()', '📥', 'Import from your bank', 'CSV or Excel — Revolut, N26, Wise…')}
         ${getStartedRow('loadSampleData()', '🎲', 'Explore with sample data', 'See how it all works')}
       </div>
       <div style="height:16px"></div>`;

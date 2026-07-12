@@ -78,7 +78,7 @@ function openSettings() {
       <div class="settings-grp-title">Import &amp; Export</div>
       ${settingsRow('exportJSON()', '💾', 'Export backup (JSON)', 'Everything: accounts, transactions, budgets, settings')}
       ${settingsRow('pickImportJSON()', '📂', 'Restore backup (JSON)', 'Load a backup file — puts you right back where you were')}
-      ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV)', 'Revolut, N26, Wise, Monzo…')}
+      ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV / Excel)', 'Revolut, N26, Wise, Monzo…')}
       ${lastImportCount ? settingsRow('undoLastImport()', '↩️', 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
       ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets — cannot be re-imported with full fidelity')}
 

@@ -76,29 +76,71 @@ let _csvMapping = {};
 function openCSVImport() {
   const html = `
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Import CSV</div>
+    <div class="sheet-title">Import from Bank</div>
     <div class="sheet-body" id="csv-body">
       <div style="margin-bottom:16px;color:var(--text-secondary);font-size:14px;line-height:1.5">
-        Import transactions from Revolut, N26, Wise, Monzo or any bank CSV.
+        Import transactions from Revolut, N26, Wise, Monzo or any bank — as <strong>CSV or Excel</strong> (.xlsx). In Revolut: Statement → Excel.
       </div>
       <label class="btn-secondary" style="display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Choose CSV File
-        <input type="file" accept=".csv" style="display:none" onchange="handleCSVFile(this)">
+        Choose File (CSV / Excel)
+        <input type="file" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleCSVFile(this)">
       </label>
     </div>`;
   openSheet('csv', html);
 }
+// Excel needs SheetJS — loaded on demand from the CDN the first time an .xlsx is picked
+// (the network-first service worker caches it, so it works offline afterwards).
+let _xlsxLoading = null;
+function loadSheetJS() {
+  if (typeof XLSX !== 'undefined') return Promise.resolve();
+  if (!_xlsxLoading) _xlsxLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = resolve;
+    s.onerror = () => { _xlsxLoading = null; reject(new Error('Could not load the Excel reader — check your connection and retry')); };
+    document.head.appendChild(s);
+  });
+  return _xlsxLoading;
+}
+// Normalize a SheetJS row grid into the exact {headers, rows} shape parseCSV produces,
+// so the whole downstream pipeline (mapping, preview, classification) is format-agnostic.
+function gridToCSVData(grid) {
+  const toCell = v => {
+    if (v && typeof v.getFullYear === 'function') { // Date (duck-typed — instanceof breaks cross-realm); ISO in LOCAL time, UTC would shift midnight dates a day
+      const p = n => String(n).padStart(2,'0');
+      return `${v.getFullYear()}-${p(v.getMonth()+1)}-${p(v.getDate())}`;
+    }
+    return v == null ? '' : String(v).trim();
+  };
+  let rows = grid.map(r => (r||[]).map(toCell));
+  while (rows.length && rows[0].every(c => !c)) rows.shift(); // some banks pad the top of the sheet
+  const headers = rows.shift() || [];
+  return {headers, rows: rows.filter(r => r.some(c => c !== '')), delim: ','};
+}
 function handleCSVFile(inp) {
   const file = inp.files[0]; if (!file) return;
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
   const r = new FileReader();
-  r.onload = e => {
-    _csvData = parseCSV(e.target.result);
-    _csvMapping = autoMapColumns(_csvData.headers);
-    _csvMerchantOverrides = {};
-    renderCSVMapping();
+  r.onload = async e => {
+    try {
+      if (isExcel) {
+        await loadSheetJS();
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        if (!ws) throw new Error('No sheet found in the file');
+        _csvData = gridToCSVData(XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''}));
+      } else {
+        _csvData = parseCSV(e.target.result);
+      }
+      if (!_csvData.headers.length || !_csvData.rows.length) { showToast('No rows found in the file','error'); return; }
+      _csvMapping = autoMapColumns(_csvData.headers);
+      _csvMerchantOverrides = {};
+      renderCSVMapping();
+    } catch(err) { showToast(err.message || 'Could not read the file','error'); }
   };
-  r.readAsText(file);
+  if (isExcel) r.readAsArrayBuffer(file); else r.readAsText(file);
 }
 function parseCSV(text) {
   const firstLine = text.split('\n')[0];

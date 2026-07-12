@@ -395,6 +395,28 @@ suite('holdings — per-position tracking', () => {
   check('sync no-op without holdings',        bare.balance, 777);
 });
 
+suite('gridToCSVData — Excel grid → CSV pipeline shape', () => {
+  // A Revolut-style sheet: leading blank row, Date cells, numeric amounts, a blank row in the middle
+  const grid = [
+    ['', '', ''],
+    ['Type', 'Completed Date', 'Description', 'Amount', 'Currency'],
+    ['CARD_PAYMENT', new Date(2026, 5, 14, 19, 25), 'Lidl', -45.99, 'EUR'],
+    ['', '', '', '', ''],
+    ['TOPUP', new Date(2026, 0, 2), 'Payroll', 3000, 'EUR'],
+    [null, undefined, 'trailing junk row with only text', '', ''],
+  ];
+  const d = app.gridToCSVData(grid);
+  check('headers from first non-empty row', d.headers, ['Type','Completed Date','Description','Amount','Currency']);
+  check('blank rows dropped', d.rows.length, 3);
+  check('Date → local ISO (with time)', d.rows[0][1], '2026-06-14');
+  check('Date → local ISO (midnight)',  d.rows[1][1], '2026-01-02');
+  check('negative number → string', d.rows[0][3], '-45.99');
+  check('positive number → string', d.rows[1][3], '3000');
+  check('null/undefined → empty', [d.rows[2][0], d.rows[2][1]], ['','']);
+  check('auto-mapping finds the columns', (() => { const m = app.autoMapColumns(d.headers); return {date:m.date, amount:m.amount, merchant:m.merchant, currency:m.currency}; })(), {date:1, amount:3, merchant:2, currency:4});
+  check('empty grid is safe', app.gridToCSVData([]), {headers:[], rows:[], delim:','});
+});
+
 // ---- async suites (WebCrypto is promise-based), then the summary ----
 (async () => {
   suite('cloud backup — encryption round-trip', () => {});
