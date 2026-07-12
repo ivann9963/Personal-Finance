@@ -14,6 +14,10 @@ function applyTransferBalances(tx, reverse) {
     : Math.round(tx.originalAmount * (getRate(tx.originalCurrency, acc.currency) || 1));
   if (!fromAcc.isVault) fromAcc.balance += sign * inCurrencyOf(fromAcc);
   if (!toAcc.isVault)   toAcc.balance   -= sign * inCurrencyOf(toAcc);
+  // Money you move into/out of an investment is a contribution/withdrawal, not a market gain:
+  // shift the cost basis with it so gain (= balance − costBasis) is unaffected by transfers.
+  if (!fromAcc.isVault && fromAcc.type==='investment' && fromAcc.costBasis!=null) fromAcc.costBasis += sign * inCurrencyOf(fromAcc);
+  if (!toAcc.isVault   && toAcc.type==='investment'   && toAcc.costBasis!=null)   toAcc.costBasis   -= sign * inCurrencyOf(toAcc);
 }
 
 function renderAccounts() {
@@ -38,11 +42,14 @@ function renderAccounts() {
       sub = `🐷 Auto-saved${ru?` · ${ru} round-ups`:''}`;
     }
     const goalBar = a.goalAmount ? goalProgressHTML(a.balance, a.goalAmount, a.currency, true) : '';
+    const ig = a.type==='investment' ? investmentGain(a) : null;
+    const gainLine = ig ? `<div style="font-size:12px;font-weight:600;margin-top:3px;color:${ig.gain>=0?'var(--green)':'var(--red)'}">${ig.gain>=0?'▲':'▼'} ${formatCurrency(Math.abs(ig.gain),a.currency)} · ${ig.pct>=0?'+':''}${ig.pct.toFixed(1)}%</div>` : '';
     return `<div class="account-card" onclick="openAccDetail('${a.id}')">
       <div class="acc-icon" style="background:var(--bg-elevated)">${a.isVault?'🐷':ati.emoji}</div>
       <div class="acc-info">
         <div class="acc-name">${escHtml(a.name)}</div>
         <div class="acc-sub">${sub}</div>
+        ${gainLine}
         ${goalBar}
       </div>
       <div class="acc-bal">
@@ -95,6 +102,7 @@ function openAccDetail(id) {
   const txs = S.transactions.filter(t=>t.accountId===id || t.toAccountId===id).slice(0,20);
   const txRows = txs.map(t=>txRowHTML(t)).join('');
   const goalSection = acc.goalAmount ? goalProgressHTML(acc.balance, acc.goalAmount, acc.currency, false) : '';
+  const invSection = acc.type==='investment' ? investmentSectionHTML(acc) : '';
   openSheet('acc-detail',`
     <div class="sheet-handle"></div>
     <div class="sheet-body" style="padding-top:16px">
@@ -109,14 +117,75 @@ function openAccDetail(id) {
           ${acc.currency!==dc&&c.ok?`<div style="font-size:12px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace">${formatCurrency(c.amount,dc)}</div>`:''}
         </div>
       </div>
+      ${invSection}
       ${goalSection}
       <div style="display:flex;gap:10px;margin-bottom:20px">
+        ${acc.type==='investment'?`<button class="btn-primary" style="flex:1" onclick="openUpdateValueSheet('${id}')">Update Value</button>`:''}
         <button class="btn-secondary" style="flex:1" onclick="openEditAccountSheet('${id}')">Edit</button>
         <button class="btn-danger" style="flex:1" onclick="deleteAccount('${id}');closeTopSheet()">Delete</button>
       </div>
       <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Recent Transactions</div>
       ${txRows||`<div style="color:var(--text-secondary);font-size:14px;padding:16px 0">No transactions</div>`}
     </div>`);
+  if (acc.type==='investment' && (acc.valueHistory||[]).length>1) requestAnimationFrame(()=>{
+    mkLine('invest-chart', acc.valueHistory.map(h=>formatDate(h.date)), [ // mkLine formats values as cents
+      {label:'Value', data:acc.valueHistory.map(h=>h.value), borderColor:'#F0B429', backgroundColor:'rgba(240,180,41,.10)', fill:true, pointRadius:2, tension:.3, borderWidth:2},
+    ]);
+  });
+}
+// Invested vs current value vs gain for an investment account's detail sheet.
+function investmentSectionHTML(acc) {
+  const ig = investmentGain(acc);
+  if (!ig) return '';
+  const vh = acc.valueHistory||[];
+  const updated = vh.length ? vh[vh.length-1].date : null;
+  return `<div style="background:var(--bg-elevated);border-radius:var(--radius);padding:14px;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:${vh.length>1?'10px':'2px'}">
+      <div>
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Invested</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px">${formatCurrency(acc.costBasis,acc.currency)}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Gain / Loss</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${ig.gain>=0?'var(--green)':'var(--red)'}">${ig.gain>=0?'+':''}${formatCurrency(ig.gain,acc.currency)} · ${ig.pct>=0?'+':''}${ig.pct.toFixed(1)}%</div>
+      </div>
+    </div>
+    ${vh.length>1?`<div style="height:120px"><canvas id="invest-chart"></canvas></div>`:''}
+    ${updated?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:6px;text-align:right">value last updated ${formatDate(updated)}</div>`:''}
+  </div>`;
+}
+// Record the account's real current value (from your broker app). Contributions are tracked
+// separately via transfers, so this only moves the market-gain part.
+function openUpdateValueSheet(id) {
+  const acc = S.accounts.find(a=>a.id===id); if (!acc) return;
+  openSheet2('update-value',`
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Update Value</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">
+        Enter what <strong>${escHtml(acc.name)}</strong> is worth right now (check your broker app). Deposits and withdrawals are tracked by transfers — this records the market movement.
+      </div>
+      <div class="form-field"><label class="form-label">Current value (${escHtml(acc.currency)})</label>
+        <input id="invest-value" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${(acc.balance/100).toFixed(2)}"></div>
+      <button class="btn-primary" onclick="saveInvestmentValue('${id}')">Save Value</button>
+    </div>`);
+}
+function saveInvestmentValue(id) {
+  const acc = S.accounts.find(a=>a.id===id); if (!acc) return;
+  const v = parseFloat(document.getElementById('invest-value').value);
+  if (isNaN(v)) { showToast('Enter the current value','error'); return; }
+  const value = Math.round(v*100);
+  acc.balance = value;
+  const c = defaultConvert(value, acc.currency);
+  acc.convertedBalance = c.ok ? c.amount : value;
+  if (acc.costBasis == null) acc.costBasis = value; // first tracking point: gain starts at 0
+  acc.valueHistory = acc.valueHistory||[];
+  const todayStr = new Date().toISOString().slice(0,10);
+  const last = acc.valueHistory[acc.valueHistory.length-1];
+  if (last && last.date === todayStr) last.value = value; // updating twice a day shouldn't spam history
+  else acc.valueHistory.push({date:todayStr, value});
+  saveState(); closeTopSheet2(); openAccDetail(id); renderCurrentTab();
+  showToast('Value updated','success');
 }
 function openAddAccountSheet(prefill={}) {
   const typeOpts = ACCOUNT_TYPES.map(t=>`<option value="${t.id}"${prefill.type===t.id?' selected':''}>${t.emoji} ${t.name}</option>`).join('');
@@ -159,6 +228,7 @@ function saveAccount(editId) {
   if (!name) { showToast('Enter account name','error'); return; }
   const balance = isNaN(parseFloat(balStr)) ? 0 : Math.round(parseFloat(balStr)*100);
   const c = defaultConvert(balance, currency);
+  const todayStr = new Date().toISOString().slice(0,10);
   if (editId) {
     const idx = S.accounts.findIndex(a=>a.id===editId);
     if (idx>=0) {
@@ -166,10 +236,21 @@ function saveAccount(editId) {
       // For auto-managed vaults the typed balance is the REAL current balance: store it as an
       // opening offset (= balance − imported flows) so future imports stay reconciled.
       const openingBalance = prev.isVault ? (balance - vaultNetFlows(prev.vaultName)) : prev.openingBalance;
-      S.accounts[idx]={...prev, name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, openingBalance, goalAmount};
+      const next = {...prev, name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, openingBalance, goalAmount};
+      if (type==='investment') {
+        if (prev.costBasis == null) { // just became (or was never tracked as) an investment — gain starts now
+          next.costBasis = balance;
+          next.valueHistory = [{date:todayStr, value:balance}];
+        } else if (balance !== prev.balance) { // balance edited by hand = a value correction, not new money
+          next.valueHistory = [...(prev.valueHistory||[]), {date:todayStr, value:balance}];
+        }
+      }
+      S.accounts[idx]=next;
     }
   } else {
-    S.accounts.push({id:gid(), name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, goalAmount});
+    const acc = {id:gid(), name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, goalAmount};
+    if (type==='investment') { acc.costBasis = balance; acc.valueHistory = [{date:todayStr, value:balance}]; }
+    S.accounts.push(acc);
   }
   saveState(); closeTopSheet(); renderCurrentTab(); // net worth + insights live on other tabs
   showToast(`Account ${editId?'updated':'added'}`,'success');

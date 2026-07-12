@@ -105,6 +105,7 @@ function renderDashboard() {
       <div class="sparkline-wrap"><canvas id="sparkline-canvas" height="48"></canvas></div>
     </div>
     ${showVelocity?`<div class="velocity-strip ${velClass}" onclick="switchTab('analytics')">${escHtml(velText)}</div>`:''}
+    ${wealthTeaserHTML()}
     <div class="section-hdr" style="padding-top:8px">Insights</div>
     <div class="insights-row">${insightCards}</div>
     <div class="recent-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px">

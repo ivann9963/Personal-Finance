@@ -302,6 +302,66 @@ suite('learnMerchantCategory — guards', () => {
   check('ignores "other"', app.getState().merchantCategories['Mystery'], undefined);
 });
 
+suite('projectWealth — compound projection', () => {
+  check('0 months → just start',        app.projectWealth(100000, 50000, 5, 0), [100000]);
+  check('0% rate = start + n×monthly',  app.projectWealth(100000, 10000, 0, 12)[12], 100000 + 12*10000);
+  check('length is months+1',           app.projectWealth(0, 100, 5, 24).length, 25);
+  // 12.6825% annual → exactly 1% monthly: 10000×1.01 + 100 each month is hand-checkable
+  const r = (Math.pow(1.126825, 1/12) - 1);
+  check('monthly rate derivation ~1%',  Math.abs(r - 0.01) < 1e-6, true);
+  const p = app.projectWealth(1000000, 0, 12.6825, 2);
+  check('compounds monthly (m1)',       p[1], 1010000);
+  check('compounds monthly (m2)',       p[2], 1020100);
+  const withC = app.projectWealth(1000000, 5000, 12.6825, 1);
+  check('contribution added at month end', withC[1], 1015000);
+  check('negative rate shrinks',        app.projectWealth(100000, 0, -10, 12)[12] < 100000, true);
+});
+
+suite('monthsToReach — milestone ETA', () => {
+  check('already there → 0',            app.monthsToReach(50000, 100000, 0, 5), 0);
+  check('flat saving: 1000→2000 @100/mo', app.monthsToReach(200000, 100000, 10000, 0), 10);
+  check('unreachable → null',           app.monthsToReach(100000000, 0, 0, 0), null);
+  const m = app.monthsToReach(200000, 100000, 0, 12.6825); // pure 1%/mo growth: 1.01^m ≥ 2 → m=70
+  check('pure growth doubling ~70mo',   m, 70);
+});
+
+suite('avgMonthlySavings — net flow per month', () => {
+  const now = new Date();
+  const mKey = i => new Date(now.getFullYear(), now.getMonth()-i, 15).toISOString().slice(0,10);
+  freshState({ transactions: [
+    { id:'i1', type:'income',  date:mKey(1), convertedAmount:300000 },
+    { id:'e1', type:'expense', date:mKey(1), convertedAmount:100000 },
+    { id:'i2', type:'income',  date:mKey(2), convertedAmount:300000 },
+    { id:'e2', type:'expense', date:mKey(2), convertedAmount:200000 },
+    { id:'t1', type:'transfer',date:mKey(1), convertedAmount:999999 }, // must not count
+  ]});
+  check('averages only real history months', app.avgMonthlySavings(6), Math.round((200000+100000)/2));
+  freshState();
+  check('no transactions → 0', app.avgMonthlySavings(), 0);
+});
+
+suite('investment tracking — cost basis vs value', () => {
+  freshState({ accounts: [
+    { id:'inv', name:'ETF', type:'investment', balance:110000, currency:'EUR', costBasis:100000 },
+    { id:'chk', name:'Main', type:'checking',  balance:50000,  currency:'EUR' },
+  ]});
+  check('gain = balance − basis', app.investmentGain(app.getState().accounts[0]), {gain:10000, pct:10});
+  check('no basis → null',        app.investmentGain(app.getState().accounts[1]), null);
+  const sum = app.investmentSummary();
+  check('summary value/basis/gain', {basis:sum.basis, value:sum.value, gain:sum.gain}, {basis:100000, value:110000, gain:10000});
+  // A transfer INTO the investment moves basis with balance → gain unchanged
+  app.applyTransferBalances({accountId:'chk', toAccountId:'inv', originalAmount:20000, originalCurrency:'EUR'}, false);
+  const inv = app.getState().accounts[0];
+  check('transfer in: balance +',   inv.balance, 130000);
+  check('transfer in: basis +',     inv.costBasis, 120000);
+  check('transfer in: gain intact', app.investmentGain(inv).gain, 10000);
+  app.applyTransferBalances({accountId:'inv', toAccountId:'chk', originalAmount:5000, originalCurrency:'EUR'}, false);
+  check('transfer out: basis −',    app.getState().accounts[0].costBasis, 115000);
+  check('transfer out: gain intact',app.investmentGain(app.getState().accounts[0]).gain, 10000);
+  // net worth = sum of converted balances
+  check('netWorthNow sums accounts', app.netWorthNow(), app.getState().accounts.reduce((s,a)=>s+a.balance,0));
+});
+
 // ---- summary ----
 console.log(`\n${C.bold}──────────────────────────────${C.reset}`);
 console.log(`${C.bold}${passed + failed} tests${C.reset}  ${C.green}${passed} passed${C.reset}  ${failed ? C.red : C.gray}${failed} failed${C.reset}`);

@@ -1,11 +1,11 @@
 # Project Status — Finance PWA
 
-_Last updated: 2026-06-21. Snapshot for picking the project back up after a break._
+_Last updated: 2026-07-12. Snapshot for picking the project back up after a break._
 
 Live app: **https://ivann9963.github.io/Personal-Finance/**
 Repo: **https://github.com/ivann9963/Personal-Finance**
 
-> **Handoff (2026-06-21):** Everything below is committed & pushed to `main` and live. Working tree is clean. Latest commit `7dd0549`. Tests: **91 passing**. This session shipped items **#10–#24** below (transfers, settings/backup overhaul, subscriptions hub + discoverable recurring, UX sweep, the sheet-animation fix, drag-reorder + custom dialogs, and full Analytics customization). **What's left** is the "Possible next steps" section near the bottom — start there.
+> **Handoff (2026-07-12):** Working tree clean, tests: **130 passing**, browser smoke `errorCount: 0`. This session shipped **#29–#30**: the JSON backup round-trip made discoverable (restore from Settings → Import & Export AND from onboarding, so export → refresh/clear → import puts you right back), and **Future Wealth + investment tracking** (cost basis vs value, Update Value with history chart, compound projection sheet with milestones, dashboard teaser). **What's left** is the prioritized section near the bottom.
 
 ## What this is
 A personal finance tracker as a static, offline-first PWA. Vanilla HTML/CSS/JS, **no build step, no backend, no framework**. All data lives in the browser's `localStorage` (key `financeapp_v1`); each device/person has their own private data. Charting via Chart.js (CDN).
@@ -18,7 +18,7 @@ interaction spot-checks) and leave the tree clean & pushed. If you can't verify,
 
 ## Run / test / deploy
 - **Run locally:** `python3 -m http.server 8000` → open http://localhost:8000
-- **Tests:** `node tests/run.js` (dependency-free Node harness, currently **91 passing**)
+- **Tests:** `node tests/run.js` (dependency-free Node harness, currently **130 passing**)
 - **Deploy:** push to `main` → GitHub Pages auto-publishes. Service worker is now **network-first**, so updates reach users on reload (no more stale cache).
 - **On iPhone:** open the live URL in Safari → Share → Add to Home Screen.
 
@@ -90,6 +90,14 @@ interaction spot-checks) and leave the tree clean & pushed. If you can't verify,
 27. **Transaction tags** (inspired by the open-source app *Flow*): any transaction can carry freeform tags on top of its category. Added in the tx form (comma-separated input with a `<datalist>` of existing tags); stored as `tx.tags` (array, only when non-empty) via `parseTags()` (`data.js`, strips `#`, trims, de-dupes). Tags render as inline chips on transaction rows and as tappable chips in the detail sheet; tapping one filters the list (`filterByTag()` → `_txFilter='tag:<t>'`), and search/`renderTxList` now matches tags too. Verified: save/parse/dedupe, row + detail display, tag filter, and search.
 
 28. **Regression fix + ship safeguard** (2026-06-21): the button haptic overlay from #26 broke **CSV import** (overlay hijacked the file-picker `<label>`) and **button taps on iOS** (the nested switch didn't bubble a click to fire `onclick`). Fixed `enableHaptics()`: skip `<label>`/`<a>`/input-wrappers, and fire the control's action explicitly via `el.click()` on the switch's `change` (+`stopPropagation` to avoid double-fire). Haptics still work (verified single-fire); import works again. Added **`tests/SMOKE.md`** — the pre-ship checklist (unit tests + paste-in browser smoke that must hit `errorCount:0` + interaction spot-checks) so logic-passing-but-runtime-broken regressions get caught before shipping.
+
+29. **JSON backup round-trip made discoverable** (2026-07-12): full-state restore existed (`importJSON`) but was only findable on the Settings Backup card. Now: (a) Settings → Import & Export has explicit "Export backup (JSON)" + "Restore backup (JSON)" rows next to the CSV ones; (b) the **onboarding final step** offers "📂 Restore from backup (JSON)" — restoring there exits onboarding straight to the dashboard via new `enterApp()` (`onboarding.js`, also resets tabs left visible after Clear All Data); (c) restore merge extracted to `mergeSavedState()` (`data.js`), shared with `loadState()`, so old backups gain new fields' defaults. 16 tests: full-fidelity round-trip + forward-compat.
+
+30. **Future Wealth + investment tracking v1** (2026-07-12, new file `js/wealth.js`):
+    - **Investments:** `investment`-type accounts track **`costBasis`** (money put in) vs **balance** (current value) → gain/loss. Basis is seeded at account creation, and **transfers in/out shift basis with balance** (`applyTransferBalances`) so contributions never count as gains. New **Update Value** action in the account detail sheet records the broker value into **`valueHistory`** (same-day updates overwrite, no spam); detail shows an Invested/Gain block + value line chart; account cards show a ▲/▼ gain line. Hand-editing an investment's balance in the Edit sheet is treated as a value correction (appends history, basis untouched). Sample data gained an "Index Funds" account demoing all of it.
+    - **Future Wealth sheet** (`openWealthSheet`): compound projection from current net worth — inputs for monthly contribution (default: avg net cash flow, `avgMonthlySavings()`), annual return % (default 5), horizon 5/10/20/30y; chart of "With growth" vs "Contributions only"; milestone ETAs (€10k…€2M, next 3); inputs persist in `settings.wealthPlan`. Dashboard shows a tappable 🔮 teaser strip under the hero. Pure math (`projectWealth`, `monthsToReach`) is unit-tested (23 tests).
+    - **Gotcha found:** `mkLine`/`mkBar` axis+tooltip callbacks format raw data values as **cents** — pass cents, never euros (the first cut passed euros and every axis label was 100× off).
+    - **v1 simplifications to revisit:** income/expense transactions on investment accounts don't touch basis (only transfers do); single blended return rate for the whole net worth; per-account currency charts label in the default currency.
 
 ## Known limitations / what's left
 - **No cloud sync / backup-by-default** — data is per-device. Backup/restore is front-and-center in Settings, with a staleness reminder on the dashboard, but it's still manual (no automatic/scheduled backup).

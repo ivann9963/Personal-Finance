@@ -8,6 +8,12 @@ function loadSampleData() {
     S.accounts.push({id:acc1Id,name:'Main Checking',type:'checking',balance:285000,currency:'EUR',institution:'Revolut',convertedBalance:285000});
     S.accounts.push({id:acc2Id,name:'Savings',type:'savings',balance:420000,currency:'EUR',institution:'N26',convertedBalance:420000});
     S.accounts.push({id:acc3Id,name:'Credit Card',type:'credit',balance:-28500,currency:'EUR',institution:'Visa',convertedBalance:-28500});
+    // Investment with a value history: shows cost basis vs current value (+6.5% gain) and the detail chart.
+    const invHist = [-150,-120,-90,-60,-30,0].map((d,i)=>{
+      const dt = new Date(now); dt.setDate(dt.getDate()+d);
+      return {date: dt.toISOString().slice(0,10), value: [500000,504500,498200,512000,521500,532500][i]};
+    });
+    S.accounts.push({id:'sample-acc4',name:'Index Funds',type:'investment',balance:532500,currency:'EUR',institution:'Trade Republic',convertedBalance:532500,costBasis:500000,valueHistory:invHist});
   }
   // Recurring schedules
   const rent_id='sample-rent', spotify_id='sample-spotify', netflix_id='sample-netflix';

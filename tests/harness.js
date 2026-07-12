@@ -6,7 +6,7 @@ const vm = require('vm');
 
 const JS_DIR = path.join(__dirname, '..', 'js');
 // Order matters: config defines constants/state, the rest depend on it.
-const FILES = ['config.js', 'data.js', 'recurring-insights.js', 'import-export.js', 'plan.js'];
+const FILES = ['config.js', 'data.js', 'recurring-insights.js', 'import-export.js', 'plan.js', 'wealth.js', 'accounts.js'];
 
 function loadApp() {
   const sandbox = {
@@ -29,6 +29,7 @@ function loadApp() {
       parseDateStr, parseAmountStr, mapCategoryValue, inferCategoryFromMerchant,
       classifyByDescription, classifySavingsFlow, interpretCSVRow, learnMerchantCategory, defaultState, getCatInfo,
       mergeSavedState,
+      projectWealth, monthsToReach, avgMonthlySavings, netWorthNow, investmentGain, investmentSummary, applyTransferBalances,
       vaultNetFlows, recomputeVaultBalances,
       monthlyEquivalent, recurringExpenseSchedules, nextChargeDate,
       getState: () => S,
