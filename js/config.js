@@ -47,6 +47,10 @@ const ACCOUNT_TYPES = [
   {id:'cash',name:'Cash',emoji:'💵'},
   {id:'other',name:'Other',emoji:'📁'}
 ];
+// Quick-pick icons for accounts (users can still type any emoji). Money/bank-leaning set.
+const ACCOUNT_EMOJIS = ['🏦','🐷','💳','📈','💵','💰','🪙','🏧','💎','🛡️','🎯','🚀','🏠','🚗','✈️','🎓','👛','💼','📊','🧾','🌟','❤️','🔒','🪺'];
+// Reused for the account color swatches (same palette the category editor uses).
+const ACCOUNT_COLORS = ['#58A6FF','#3FB950','#F0B429','#FF6B6B','#4ECDC4','#A29BFE','#C39BD3','#FF9F43','#00CEC9','#FD79A8','#74B9FF','#B2BEC3'];
 
 // App state
 let S = null; // main state object

@@ -20,6 +20,21 @@ function applyTransferBalances(tx, reverse) {
   if (!toAcc.isVault   && toAcc.type==='investment'   && toAcc.costBasis!=null)   toAcc.costBasis   -= sign * inCurrencyOf(toAcc);
 }
 
+// hex (#RRGGBB) → rgba() with the given alpha, for subtle account-color tints.
+function hexToRgba(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex||''); if (!m) return 'var(--bg-elevated)';
+  const n = parseInt(m[1],16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+// The emoji shown for an account: custom emoji if set, else its type's emoji (vaults stay 🐷).
+function accountEmoji(a) {
+  if (a.isVault) return '🐷';
+  return a.emoji || (ACCOUNT_TYPES.find(t=>t.id===a.type)?.emoji) || '📁';
+}
+// Inline style for an account icon circle — tinted with the account's color when set.
+function accountIconStyle(a) {
+  return a.color ? `background:${hexToRgba(a.color,0.18)}` : 'background:var(--bg-elevated)';
+}
 function renderAccounts() {
   const el = document.getElementById('tab-accounts');
   const dc = S.settings.defaultCurrency;
@@ -45,7 +60,7 @@ function renderAccounts() {
     const ig = a.type==='investment' ? investmentGain(a) : null;
     const gainLine = ig ? `<div style="font-size:12px;font-weight:600;margin-top:3px;color:${ig.gain>=0?'var(--green)':'var(--red)'}">${ig.gain>=0?'▲':'▼'} ${formatCurrency(Math.abs(ig.gain),a.currency)} · ${ig.pct>=0?'+':''}${ig.pct.toFixed(1)}%</div>` : '';
     return `<div class="account-card" onclick="openAccDetail('${a.id}')">
-      <div class="acc-icon" style="background:var(--bg-elevated)">${a.isVault?'🐷':ati.emoji}</div>
+      <div class="acc-icon" style="${accountIconStyle(a)}">${accountEmoji(a)}</div>
       <div class="acc-info">
         <div class="acc-name">${escHtml(a.name)}</div>
         <div class="acc-sub">${sub}</div>
@@ -107,7 +122,7 @@ function openAccDetail(id) {
     <div class="sheet-handle"></div>
     <div class="sheet-body" style="padding-top:16px">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
-        <div class="acc-icon" style="background:var(--bg-elevated);width:56px;height:56px;font-size:26px">${acc.isVault?'🐷':ati.emoji}</div>
+        <div class="acc-icon" style="${accountIconStyle(acc)};width:56px;height:56px;font-size:26px">${accountEmoji(acc)}</div>
         <div>
           <div style="font-size:20px;font-weight:700">${escHtml(acc.name)}</div>
           <div style="font-size:13px;color:var(--text-secondary)">${escHtml(acc.institution||ati.name)}</div>
@@ -288,6 +303,12 @@ function saveUpdatedPrices(accId) {
 function openAddAccountSheet(prefill={}) {
   const typeOpts = ACCOUNT_TYPES.map(t=>`<option value="${t.id}"${prefill.type===t.id?' selected':''}>${t.emoji} ${t.name}</option>`).join('');
   const curOpts  = CURRENCIES.map(c=>`<option value="${c.code}"${(prefill.currency||S.settings.defaultCurrency)===c.code?' selected':''}>${c.code} — ${c.name}</option>`).join('');
+  // Icon defaults: custom emoji if the account already has one, else its type's emoji.
+  const typeEmoji = ACCOUNT_TYPES.find(t=>t.id===(prefill.type||'checking'))?.emoji || '🏦';
+  const startEmoji = prefill.emoji || typeEmoji;
+  window._newAccColor = prefill.color || ACCOUNT_COLORS[0];
+  const emojiGrid = ACCOUNT_EMOJIS.map(e=>`<button type="button" class="cat-emoji-opt${startEmoji===e?' sel':''}" data-emoji="${e}" onclick="pickAccEmoji('${e}')">${e}</button>`).join('');
+  const colorDots = ACCOUNT_COLORS.map(col=>`<button type="button" onclick="pickAccColor('${col}')" data-color="${col}" class="acc-color-dot" style="width:30px;height:30px;border-radius:50%;background:${col};border:3px solid ${col===window._newAccColor?'#fff':'transparent'};transition:border-color 150ms;flex-shrink:0"></button>`).join('');
   openSheet('add-acc',`
     <div class="sheet-handle"></div>
     <div class="sheet-title">${prefill.id?'Edit Account':'Add Account'}</div>
@@ -295,7 +316,14 @@ function openAddAccountSheet(prefill={}) {
       <div class="form-field"><label class="form-label">Account Name</label>
         <input id="acc-name" class="form-input" type="text" placeholder="e.g. Main Checking" value="${escHtml(prefill.name||'')}"></div>
       <div class="form-field"><label class="form-label">Type</label>
-        <select id="acc-type" class="form-input">${typeOpts}</select></div>
+        <select id="acc-type" class="form-input" onchange="onAccTypeChange(this.value)">${typeOpts}</select></div>
+      <div class="form-field">
+        <label class="form-label">Icon</label>
+        <div class="cat-emoji-grid">${emojiGrid}</div>
+        <input id="acc-emoji" class="form-input" type="text" placeholder="or type any emoji" value="${escHtml(startEmoji)}" style="font-size:20px;text-align:center;height:48px;margin-top:8px" oninput="syncAccEmojiGrid(this.value)">
+      </div>
+      <div class="form-field"><label class="form-label">Color</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0">${colorDots}</div></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">${prefill.isVault?'Actual Balance':'Balance'}</label>
           <input id="acc-balance" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${prefill.balance!=null?(prefill.balance/100).toFixed(2):''}"></div>
@@ -311,6 +339,29 @@ function openAddAccountSheet(prefill={}) {
       <button class="btn-primary" onclick="saveAccount('${prefill.id||''}')">Save Account</button>
     </div>`);
 }
+function pickAccEmoji(e) {
+  const inp = document.getElementById('acc-emoji');
+  if (inp) inp.value = e;
+  document.querySelectorAll('#sheet-add-acc .cat-emoji-opt').forEach(b => b.classList.toggle('sel', b.dataset.emoji === e));
+}
+// Keep the quick-pick grid highlight in sync when the user types their own emoji.
+function syncAccEmojiGrid(val) {
+  document.querySelectorAll('#sheet-add-acc .cat-emoji-opt').forEach(b => b.classList.toggle('sel', b.dataset.emoji === val.trim()));
+}
+function pickAccColor(color) {
+  window._newAccColor = color;
+  document.querySelectorAll('#sheet-add-acc .acc-color-dot').forEach(b => { b.style.borderColor = b.dataset.color === color ? '#fff' : 'transparent'; });
+}
+// When the type changes and the icon is still "following" a type emoji (not customized),
+// update it to match the new type. Leave hand-picked custom emojis untouched.
+function onAccTypeChange(typeId) {
+  const inp = document.getElementById('acc-emoji'); if (!inp) return;
+  const typeEmojis = ACCOUNT_TYPES.map(t=>t.emoji);
+  if (typeEmojis.includes(inp.value.trim())) {
+    const e = ACCOUNT_TYPES.find(t=>t.id===typeId)?.emoji || inp.value;
+    inp.value = e; pickAccEmoji(e);
+  }
+}
 function openEditAccountSheet(id) {
   const acc = S.accounts.find(a=>a.id===id); if (!acc) return;
   openAddAccountSheet({...acc});
@@ -321,6 +372,8 @@ function saveAccount(editId) {
   const balStr = document.getElementById('acc-balance').value;
   const currency = document.getElementById('acc-currency').value;
   const institution = document.getElementById('acc-institution').value.trim();
+  const emoji = (document.getElementById('acc-emoji')?.value || '').trim() || null;
+  const color = window._newAccColor || null;
   const goalStr = document.getElementById('acc-goal')?.value;
   const goalAmount = goalStr && parseFloat(goalStr) > 0 ? Math.round(parseFloat(goalStr)*100) : null;
   if (!name) { showToast('Enter account name','error'); return; }
@@ -334,7 +387,7 @@ function saveAccount(editId) {
       // For auto-managed vaults the typed balance is the REAL current balance: store it as an
       // opening offset (= balance − imported flows) so future imports stay reconciled.
       const openingBalance = prev.isVault ? (balance - vaultNetFlows(prev.vaultName)) : prev.openingBalance;
-      const next = {...prev, name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, openingBalance, goalAmount};
+      const next = {...prev, name, type, balance, currency, institution, emoji, color, convertedBalance:c.ok?c.amount:balance, openingBalance, goalAmount};
       if (type==='investment') {
         if (prev.costBasis == null) { // just became (or was never tracked as) an investment — gain starts now
           next.costBasis = balance;
@@ -347,7 +400,7 @@ function saveAccount(editId) {
       S.accounts[idx]=next;
     }
   } else {
-    const acc = {id:gid(), name, type, balance, currency, institution, convertedBalance:c.ok?c.amount:balance, goalAmount};
+    const acc = {id:gid(), name, type, balance, currency, institution, emoji, color, convertedBalance:c.ok?c.amount:balance, goalAmount};
     if (type==='investment') { acc.costBasis = balance; acc.valueHistory = [{date:todayStr, value:balance}]; }
     S.accounts.push(acc);
   }
