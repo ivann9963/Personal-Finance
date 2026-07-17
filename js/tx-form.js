@@ -48,6 +48,7 @@ function buildTxSheet(prefill={}, isUpdate=false) {
     <div class="sheet-handle"></div>
     <div class="sheet-body" style="padding-top:12px">
       <div class="type-seg">
+        <div class="type-seg-ind ${_txForm.type}" style="transform:translateX(${({expense:0,income:1,transfer:2})[_txForm.type]*100}%)"></div>
         <button class="type-seg-btn${_txForm.type==='expense'?' active expense':''}" onclick="setTxType('expense')">Expense</button>
         <button class="type-seg-btn${_txForm.type==='income'?' active income':''}" onclick="setTxType('income')">Income</button>
         <button class="type-seg-btn${_txForm.type==='transfer'?' active transfer':''}" onclick="setTxType('transfer')">Transfer</button>
@@ -112,18 +113,37 @@ function buildTxSheet(prefill={}, isUpdate=false) {
   setTimeout(()=>document.getElementById('tx-amount')?.focus(), 400);
 }
 function setTxType(type) {
+  const prev = _txForm.type;
   _txForm.type = type;
   if (type === 'transfer' && !_txForm.toAccountId) {
     _txForm.toAccountId = S.accounts.find(a=>a.id!==_txForm.accountId)?.id || S.accounts[0]?.id || '';
   }
-  buildTxSheet(collectTxFormValues(), true);
+  // Transfer shows/hides fields (category, from/to), so it needs a rebuild. Expense↔Income keep
+  // the same fields — update in place so the segment indicator can actually slide between them.
+  if (type === 'transfer' || prev === 'transfer') { buildTxSheet(collectTxFormValues(), true); return; }
+  const idx = {expense:0, income:1, transfer:2}[type];
+  const ind = document.querySelector('.type-seg-ind');
+  if (ind) { ind.style.transform = `translateX(${idx*100}%)`; ind.className = `type-seg-ind ${type}`; }
+  document.querySelectorAll('.type-seg-btn').forEach((b,i)=>{
+    b.classList.remove('active','expense','income','transfer');
+    if (i===idx) b.classList.add('active', type);
+  });
+  const amt = document.getElementById('tx-amount');
+  if (amt) amt.className = `amt-input ${type}`;
+  haptic('light');
 }
 function setTxCurrency(code) { _txForm.currency=code; buildTxSheet(collectTxFormValues(), true); }
 function selectTxCat(id) {
   _txForm.category = id;
+  let selEl = null;
   document.querySelectorAll('.cat-pill').forEach(p => {
-    p.classList.toggle('sel', p.dataset.catid === id);
+    const on = p.dataset.catid === id;
+    p.classList.toggle('sel', on);
+    if (on) selEl = p;
   });
+  // Bring the chosen category into view so it's never hidden off-screen in the scroll row.
+  if (selEl) selEl.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+  haptic('light');
 }
 function addTxCategoryInline() {
   // Opens the category editor on top of the tx sheet; on save, select it and refresh in place.

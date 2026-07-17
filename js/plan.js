@@ -2,7 +2,8 @@
 function renderPlan() {
   const el = document.getElementById('tab-plan');
   el.innerHTML = `
-    <div class="seg" style="margin:12px 16px">
+    <div class="seg has-ind" style="margin:12px 16px;--seg-n:3">
+      <div class="seg-ind" style="transform:translateX(${({budgets:0,subscriptions:1,calendar:2})[_planView]*100}%)"></div>
       <button class="seg-btn${_planView==='budgets'?' active':''}" onclick="setPlanView('budgets')">Budgets</button>
       <button class="seg-btn${_planView==='subscriptions'?' active':''}" onclick="setPlanView('subscriptions')">Recurring</button>
       <button class="seg-btn${_planView==='calendar'?' active':''}" onclick="setPlanView('calendar')">Calendar</button>
@@ -10,7 +11,19 @@ function renderPlan() {
     <div id="plan-content"></div>`;
   renderPlanContent();
 }
-function setPlanView(v) { _planView=v; renderPlan(); }
+function setPlanView(v) {
+  _planView=v;
+  // Slide the segment indicator + swap active states in place, then re-render only the content
+  // below it — so switching tabs animates instead of rebuilding the whole segmented control.
+  const ind = document.querySelector('#tab-plan .seg-ind');
+  if (ind) {
+    ind.style.transform = `translateX(${({budgets:0,subscriptions:1,calendar:2})[v]*100}%)`;
+    document.querySelectorAll('#tab-plan .seg-btn').forEach((b,i)=>b.classList.toggle('active', i===({budgets:0,subscriptions:1,calendar:2})[v]));
+    renderPlanContent();
+  } else {
+    renderPlan(); // first paint (segment not on screen yet)
+  }
+}
 function renderPlanContent() {
   const el = document.getElementById('plan-content'); if (!el) return;
   if (_planView==='budgets') renderBudgets(el);
