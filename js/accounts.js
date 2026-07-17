@@ -46,7 +46,7 @@ function renderAccounts() {
   });
   const netWorth = assets - liabilities;
   const accTypeInfo = id => ACCOUNT_TYPES.find(t=>t.id===id)||{emoji:'📁'};
-  const cards = S.accounts.map(a=>{
+  const cards = S.accounts.map((a,i)=>{
     const ati = accTypeInfo(a.type);
     const c = defaultConvert(a.balance, a.currency);
     const isLiability = a.type==='credit';
@@ -59,7 +59,7 @@ function renderAccounts() {
     const goalBar = a.goalAmount ? goalProgressHTML(a.balance, a.goalAmount, a.currency, true) : '';
     const ig = a.type==='investment' ? investmentGain(a) : null;
     const gainLine = ig ? `<div style="font-size:12px;font-weight:600;margin-top:3px;color:${ig.gain>=0?'var(--green)':'var(--red)'}">${ig.gain>=0?'▲':'▼'} ${formatCurrency(Math.abs(ig.gain),a.currency)} · ${ig.pct>=0?'+':''}${ig.pct.toFixed(1)}%</div>` : '';
-    return `<div class="account-card" onclick="openAccDetail('${a.id}')">
+    return `<div class="account-card rise-in" style="animation-delay:${Math.min(i*45,270)}ms" onclick="openAccDetail('${a.id}')">
       <div class="acc-icon" style="${accountIconStyle(a)}">${accountEmoji(a)}</div>
       <div class="acc-info">
         <div class="acc-name">${escHtml(a.name)}</div>

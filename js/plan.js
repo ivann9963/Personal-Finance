@@ -57,7 +57,7 @@ function renderBudgets(el) {
   // Budget cards
   const lastMonStr = new Date(y,m-1,1).toISOString().slice(0,7);
   const lastMonTx = S.transactions.filter(t=>t.type==='expense'&&t.date.startsWith(lastMonStr));
-  const budgetCards = S.budgets.map(b=>{
+  const budgetCards = S.budgets.map((b,i)=>{
     const ci = getCatInfo(b.category);
     const budAmt = (() => { const c=defaultConvert(b.amount,b.currency); return c.ok?c.amount:b.amount; })();
     const spent = monthTx.filter(t=>t.category===b.category).reduce((s,t)=>s+t.convertedAmount,0);
@@ -68,7 +68,7 @@ function renderBudgets(el) {
     const delta = lastSpent>0 ? Math.round((spent-lastSpent)/lastSpent*100) : null;
     const remaining = budAmt - spent;
     const daysLeft = dim - diy;
-    return `<div class="budget-card${over?' exceeded':''}" style="cursor:pointer" onclick="openEditBudget('${jsAttr(b.category)}')">
+    return `<div class="budget-card rise-in${over?' exceeded':''}" style="cursor:pointer;animation-delay:${Math.min(i*45,270)}ms" onclick="openEditBudget('${jsAttr(b.category)}')">
       <div class="budget-hdr">
         <div class="budget-name">${ci.emoji} ${escHtml(ci.name)}</div>
         <div class="budget-amts"><span class="budget-spent" style="color:${over?'var(--red)':'var(--text-primary)'}">${formatCurrency(spent,dc)}</span><span class="budget-total"> / ${formatCurrency(budAmt,dc)}</span></div>
@@ -135,11 +135,11 @@ function renderSubscriptions(el) {
 
   const totalMonthly = subs.reduce((s,r)=>s+r.monthly, 0);
   const cycleLabel = {daily:'daily', weekly:'weekly', biweekly:'every 2 weeks', monthly:'monthly', yearly:'yearly'};
-  const rows = subs.map(r => {
+  const rows = subs.map((r,i) => {
     const ci = getCatInfo(r.category);
     const dueSoon = r.next <= in7;
     const nextLbl = r.next===tod ? 'Today' : formatDate(r.next, {month:'short', day:'numeric'});
-    return `<div class="sub-row" style="cursor:pointer" onclick="openEditRecurringSheet('${r.id}')">
+    return `<div class="sub-row rise-in" style="cursor:pointer;animation-delay:${Math.min(i*45,270)}ms" onclick="openEditRecurringSheet('${r.id}')">
       <div class="sub-icon" style="background:${ci.color}22">${ci.emoji}</div>
       <div class="sub-info">
         <div class="sub-name">${escHtml(r.merchant)}</div>

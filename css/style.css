@@ -435,4 +435,27 @@ textarea.form-input{resize:none;min-height:72px}
 .gap-8{gap:8px}
 .ml-auto{margin-left:auto}
 
+/* ===== Motion & feel ===== */
+/* Staggered list entrance: items fade + rise into place. `both` holds the start
+   frame during the inline animation-delay so there's no pre-animation flash. */
+@keyframes rise-in{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.rise-in{animation:rise-in .44s var(--ease-out) both;will-change:transform,opacity}
+
+/* Tactile press — cards/rows spring inward when touched (Revolut-style). */
+.account-card,.budget-card,.sub-row,.settings-row,.tx-row,.insight-card{transition:background 180ms,transform 240ms var(--spring)}
+.account-card:active,.budget-card:active,.sub-row:active,.settings-row:active,.insight-card:active{transform:scale(.972)}
+.tx-row:active{transform:scale(.985)}
+
+/* Progress/goal bars grow from zero on mount (works alongside the width transition
+   used for live updates). transform-origin keeps the fill anchored to the left. */
+.progress-fill{transform-origin:left center;animation:bar-grow .72s var(--ease-out) both}
+@keyframes bar-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* Accessibility: honor reduced-motion by dropping the entrance/growth animations. */
+@media(prefers-reduced-motion:reduce){
+  .rise-in{animation:none}
+  .progress-fill{animation:none}
+  .account-card:active,.budget-card:active,.sub-row:active,.settings-row:active,.insight-card:active,.tx-row:active{transform:none}
+}
+
 

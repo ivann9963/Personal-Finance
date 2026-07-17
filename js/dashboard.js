@@ -114,8 +114,10 @@ function renderDashboard() {
     </div>
     <div>${recentHTML}</div>
     <div style="height:8px"></div>`;
-  // Animate net worth
-  animateValue('hero-amount', 0, netWorth, 700, v => formatCurrency(Math.round(v), dc));
+  // Animate net worth — count up from 0 on first view, then tick from the last shown
+  // value on later renders so a change reads as a smooth adjustment, not a full re-roll.
+  animateValue('hero-amount', _lastHeroNet ?? 0, netWorth, 700, v => formatCurrency(Math.round(v), dc));
+  _lastHeroNet = netWorth;
   // Sparkline
   requestAnimationFrame(() => mkSparkline('sparkline-canvas', sparkPoints));
 }
@@ -152,6 +154,7 @@ function snoozeBackupReminder() {
   localStorage.setItem('backup_reminder_snoozed', String(Date.now()));
   renderDashboard();
 }
+let _lastHeroNet = null; // last net-worth shown on the hero, so re-renders tick instead of re-rolling
 function animateValue(elId, from, to, duration, fmt) {
   const el = document.getElementById(elId); if (!el) return;
   const start = performance.now();
