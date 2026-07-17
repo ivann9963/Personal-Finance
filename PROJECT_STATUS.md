@@ -124,6 +124,28 @@ interaction spot-checks) and leave the tree clean & pushed. If you can't verify,
 - **No multi-currency net-worth nuance** beyond manual exchange rates entered on transactions.
 - **Tests** cover the import/data logic well; UI flows are verified manually via Playwright scripts (not committed) — no automated UI test suite.
 
+## UX review — issues log (opened 2026-07-17)
+A sweep focused on *feel* and *correctness* (not features). Tracked here so nothing is lost.
+
+### Fixed this session ✅
+- **Analytics ranges are calendar-month** (1M = 1st→today, not rolling 30 days) + each range shows its exact date span under the chips.
+- **Toasts moved to the bottom**, above the nav and clear of the FAB (was overlapping the header/banners).
+- **Accounts get custom emoji + color** icons (were locked to 6 fixed type emojis); falls back to the type emoji.
+- **Settings restructured** — clearer groups, "Load Sample Data" out of Danger Zone, added default transaction type + default account, storage-usage footer.
+- **Motion pass** — staggered list entrance, tactile press-scale on cards/rows, progress bars grow from zero, net-worth hero ticks from its last value. All respect `prefers-reduced-motion`.
+- **Sliding segmented controls** (Expense/Income/Transfer, Plan tabs) + **springy category pills** that pop and scroll into view.
+- **Money handling** — `parseAmount()` shared locale-tolerant parser (typing `13,90` now = €13.90, was €1390); all numeric inputs switched to `type=text inputmode=decimal`; `formatCurrency()` shows full cents by default (was rounding everything ≥ €10 to whole units); compact tiles keep the abbreviated look.
+- **Corrupt-data recovery** — `loadState()` no longer silently wipes on a parse error; it preserves the unreadable data under a `__corrupt_*` key and prompts to restore from a backup.
+
+### Open — prioritized
+1. 🔴 **Foreign-currency accounts with no exchange rate are silently excluded from Net Worth.** `dashboard.js:44` and `accounts.js:44` use `c.ok ? c.amount : 0`, so an account whose currency has no stored rate contributes 0 with no warning and no way to fix it (rates are only settable via the tx form). Fix: warning chip on the account + Net-Worth footnote + inline rate entry. **← in progress.**
+2. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh.
+3. 🟡 **CSV date ambiguity defaults to European silently** (`import-export.js:376`). `03/04/2024` → April 3 for everyone. Fix: add a "Date format DD/MM ⟷ MM/DD" toggle to the mapping step (mirrors the existing Amount-Sign toggle).
+4. 🟡 **No service-worker update signal.** Installed PWA can run stale cached JS after a deploy (see Gotchas). Fix: detect the new worker taking control → "Update ready — tap to refresh" toast.
+5. 🟢 **Amount/date/category inputs lack screen-reader labels** — add `aria-label`s (amount field is only a `0.00` placeholder to VoiceOver).
+6. 🟢 **Large CSV/Excel parse has no loading state** — a big file looks frozen; add a "Reading file…" indicator.
+7. 🟢 **CSV duplicates are skipped and only reported after import**, not pre-previewed (acceptable — `undoLastImport` provides recovery).
+
 ## What's left (prioritized — start here next session)
 _Analytics customization (reorder / sort / custom order / show-hide) is **fully done** — see item #24 above._
 
