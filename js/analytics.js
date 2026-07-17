@@ -185,6 +185,16 @@ function getMonthsInRange(range) {
   }
   return months;
 }
+// Human-readable dates the current range spans, shown under the chips so "1M" etc. are unambiguous.
+function analyticsRangeCaption(range) {
+  const {start, end} = getDateRange(range);
+  const fmtDay = d => d.toLocaleDateString(undefined, {day:'numeric', month:'short'});
+  const fmtFull = d => d.toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'});
+  if (range === 'All') {
+    return S.transactions.length ? `Since ${fmtFull(start)}` : 'All time';
+  }
+  return `${fmtDay(start)} – ${fmtFull(end)}`;
+}
 function renderAnalytics() {
   const el = document.getElementById('tab-analytics');
   const ranges = ['1M','3M','6M','1Y','All'];
@@ -192,6 +202,7 @@ function renderAnalytics() {
     <div class="range-sel">
       ${ranges.map(r=>`<button class="range-btn${_analyticsRange===r?' active':''}" onclick="setAnalyticsRange('${r}')">${r}</button>`).join('')}
     </div>
+    <div id="analytics-range-caption" class="range-caption">${escHtml(analyticsRangeCaption(_analyticsRange))}</div>
     <div style="display:flex;justify-content:flex-end;padding:0 16px 2px">
       <button onclick="openAnalyticsLayout()" style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:5px;padding:4px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 9 12 5 16 9"/><polyline points="8 15 12 19 16 15"/></svg>
@@ -204,6 +215,8 @@ function renderAnalytics() {
 function setAnalyticsRange(r) {
   _analyticsRange=r;
   document.querySelectorAll('#tab-analytics .range-btn').forEach(b => b.classList.toggle('active', b.textContent.trim()===r));
+  const cap = document.getElementById('analytics-range-caption');
+  if (cap) cap.textContent = analyticsRangeCaption(r);
   renderAnalyticsContent();
 }
 function renderAnalyticsContent() {
