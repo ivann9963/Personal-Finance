@@ -2,10 +2,14 @@
 let _txForm = {type:'expense', category:'food', currency:null, accountId:null, toAccountId:null, recurring:false};
 
 function openAddTxSheet(prefill={}) {
-  const firstAccId  = S.accounts[0]?.id || '';
+  // Honor the user's "New transaction defaults" (Settings) for a brand-new entry; an explicit
+  // prefill (edit, duplicate, drill-down) always wins over the saved default.
+  const prefAccId = S.accounts.some(a=>a.id===S.settings.defaultAccountId) ? S.settings.defaultAccountId : null;
+  const firstAccId  = prefAccId || S.accounts[0]?.id || '';
   const secondAccId = S.accounts.find(a=>a.id !== (prefill.accountId||firstAccId))?.id || firstAccId;
+  const defaultType = prefill.id ? (prefill.type||'expense') : (prefill.type || S.settings.defaultTxType || 'expense');
   _txForm = {
-    type: prefill.type||'expense',
+    type: defaultType,
     category: prefill.category||'food',
     currency: prefill.originalCurrency||S.settings.defaultCurrency,
     accountId: prefill.accountId||firstAccId,

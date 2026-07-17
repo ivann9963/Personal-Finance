@@ -57,6 +57,10 @@ function openSettings() {
         <button class="btn-secondary" style="flex:1;padding:11px" onclick="pickImportJSON()">Restore</button>
       </div>
     </div>`;
+  // New-transaction defaults (fall back to sensible values when unset).
+  const defTypeLabel = {expense:'Expense',income:'Income',transfer:'Transfer'}[S.settings.defaultTxType||'expense'];
+  const defAcc = S.accounts.find(a=>a.id===S.settings.defaultAccountId);
+  const defAccLabel = defAcc ? defAcc.name : (S.accounts.length ? 'First account' : 'No accounts yet');
   const html = `
     <div class="sheet-handle"></div>
     <div class="sheet-title">Settings</div>
@@ -66,10 +70,14 @@ function openSettings() {
       ${settingsRow('openCloudBackupSheet()', '☁️', 'Cloud Backup',
         cloudActive() ? `On — last ${relTimeSince(cloudCfg().lastCloudBackupAt)||'never'}` : cloudEnabled() ? 'Set up — finish signing in' : 'Automatic encrypted backup — set up')}
 
-      <div class="settings-grp-title">Preferences</div>
+      <div class="settings-grp-title">General</div>
       ${settingsRow('openThemePicker()', '🎨', 'Theme', themeLabel)}
       ${settingsRow(`openCurrencyPicker('${S.settings.defaultCurrency}',setDefaultCurrency)`, '💱', 'Default Currency', `${dcInfo.code} — ${dcInfo.name}`)}
       ${settingsRow('openFirstDayPicker()', '📅', 'Week starts on', S.settings.firstDayOfWeek==='monday'?'Monday':'Sunday')}
+
+      <div class="settings-grp-title">New Transaction Defaults</div>
+      ${settingsRow('openDefaultTypePicker()', '⚡', 'Default type', defTypeLabel)}
+      ${S.accounts.length ? settingsRow('openDefaultAccountPicker()', '🏦', 'Default account', defAccLabel) : ''}
 
       <div class="settings-grp-title">Manage</div>
       ${settingsRow('openCategoriesManager()', '🏷️', 'Categories', 'Add, edit, reorder')}
@@ -82,12 +90,17 @@ function openSettings() {
       ${lastImportCount ? settingsRow('undoLastImport()', '↩️', 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
       ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets — cannot be re-imported with full fidelity')}
 
+      ${!hasTx ? `<div class="settings-grp-title">Explore</div>
+      ${settingsRow('loadSampleData()', '🎲', 'Load Sample Data', 'Fills the app with demo data to explore')}` : ''}
+
       <div class="settings-grp-title">Danger Zone</div>
-      ${!hasTx ? settingsRow('loadSampleData()', '🎲', 'Load Sample Data', 'Fills the app with demo data to explore') : ''}
       ${settingsRow('clearTransactions()', '🧹', 'Delete All Transactions', 'Keeps accounts, budgets &amp; categories', {danger:true, iconBg:'var(--red-bg)'})}
       ${settingsRow('clearAllData()', '🗑️', 'Clear All Data', 'Erase everything on this device', {danger:true, iconBg:'var(--red-bg)'})}
 
-      <div style="padding:20px 16px;font-size:12px;color:var(--text-tertiary);text-align:center">Finance v1.0 · All data stored locally on device</div>
+      <div style="padding:20px 16px;font-size:12px;color:var(--text-tertiary);text-align:center;line-height:1.6">
+        Finance v1.0 · All data stored locally on device<br>
+        ${storageSummary()}
+      </div>
     </div>`;
   openSheet('settings', html);
 }
@@ -120,6 +133,30 @@ function setFirstDay(day) {
   S.settings.firstDayOfWeek = day; saveState();
   refreshSettingsIfOpen();
   invalidateOtherTabs(); // the Plan calendar grid depends on this
+}
+// Which type the Add-Transaction sheet opens on by default.
+function openDefaultTypePicker() {
+  const types = [{id:'expense',label:'Expense',emoji:'💸'},{id:'income',label:'Income',emoji:'💰'},{id:'transfer',label:'Transfer',emoji:'🔁'}];
+  const cur = S.settings.defaultTxType || 'expense';
+  const rows = types.map(t=>`<div class="quick-item" onclick="setDefaultTxType('${t.id}');closeTopSheet2()">${t.emoji} ${t.label}${cur===t.id?' ✓':''}</div>`).join('');
+  openSheet2('deftype-picker',`<div class="sheet-handle"></div><div class="sheet-title">Default type</div><div class="sheet-body" style="padding:0">${rows}</div>`);
+}
+function setDefaultTxType(type) { S.settings.defaultTxType = type; saveState(); refreshSettingsIfOpen(); }
+// Which account new transactions are pre-filled with. "First account" = clear the preference.
+function openDefaultAccountPicker() {
+  const cur = S.settings.defaultAccountId || '';
+  const rows = [`<div class="quick-item" onclick="setDefaultAccount('');closeTopSheet2()">🏦 First account (default)${!cur?' ✓':''}</div>`]
+    .concat(S.accounts.map(a=>`<div class="quick-item" onclick="setDefaultAccount('${jsAttr(a.id)}');closeTopSheet2()">${accountEmoji(a)} ${escHtml(a.name)}${cur===a.id?' ✓':''}</div>`)).join('');
+  openSheet2('defacc-picker',`<div class="sheet-handle"></div><div class="sheet-title">Default account</div><div class="sheet-body" style="padding:0">${rows}</div>`);
+}
+function setDefaultAccount(id) { S.settings.defaultAccountId = id || null; saveState(); refreshSettingsIfOpen(); }
+// Footer line: how much local storage the app is using + record counts.
+function storageSummary() {
+  let bytes = 0;
+  try { bytes = new Blob([localStorage.getItem(STORAGE_KEY)||'']).size; } catch(e) {}
+  const kb = bytes/1024;
+  const size = kb < 1024 ? `${kb.toFixed(kb<10?1:0)} KB` : `${(kb/1024).toFixed(1)} MB`;
+  return `${size} used · ${S.transactions.length} transaction${S.transactions.length!==1?'s':''} · ${S.accounts.length} account${S.accounts.length!==1?'s':''}`;
 }
 function pickImportJSON() {
   const inp = document.createElement('input');
