@@ -184,13 +184,13 @@ function openUpdateValueSheet(id) {
         Enter what <strong>${escHtml(acc.name)}</strong> is worth right now (check your broker app). Deposits and withdrawals are tracked by transfers — this records the market movement.
       </div>
       <div class="form-field"><label class="form-label">Current value (${escHtml(acc.currency)})</label>
-        <input id="invest-value" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${(acc.balance/100).toFixed(2)}"></div>
+        <input id="invest-value" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${(acc.balance/100).toFixed(2)}"></div>
       <button class="btn-primary" onclick="saveInvestmentValue('${id}')">Save Value</button>
     </div>`);
 }
 function saveInvestmentValue(id) {
   const acc = S.accounts.find(a=>a.id===id); if (!acc) return;
-  const v = parseFloat(document.getElementById('invest-value').value);
+  const v = parseAmount(document.getElementById('invest-value').value);
   if (isNaN(v)) { showToast('Enter the current value','error'); return; }
   const value = Math.round(v*100);
   acc.balance = value;
@@ -234,12 +234,12 @@ function openHoldingSheet(accId, holdingId) {
         <input id="hold-name" class="form-input" type="text" placeholder="e.g. VWCE, Bitcoin" value="${escHtml(h?.name||'')}"></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">Quantity</label>
-          <input id="hold-qty" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="e.g. 12.5" value="${h?h.qty:''}"></div>
+          <input id="hold-qty" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="e.g. 12.5" value="${h?h.qty:''}"></div>
         <div class="form-field"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
-          <input id="hold-price" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
+          <input id="hold-price" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
       </div>
       <div class="form-field"><label class="form-label">Avg buy price / unit (optional — enables gain per holding)</label>
-        <input id="hold-avgcost" class="form-input mono" type="number" inputmode="decimal" step="any" placeholder="what you paid on average" value="${h&&h.avgCost!=null?(h.avgCost/100).toFixed(2):''}"></div>
+        <input id="hold-avgcost" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="what you paid on average" value="${h&&h.avgCost!=null?(h.avgCost/100).toFixed(2):''}"></div>
       <div style="height:8px"></div>
       <button class="btn-primary" onclick="saveHolding('${accId}','${holdingId||''}')">Save Holding</button>
       ${h?`<button class="btn-danger" style="width:100%;margin-top:10px" onclick="deleteHolding('${accId}','${holdingId}')">Delete Holding</button>`:''}
@@ -248,10 +248,10 @@ function openHoldingSheet(accId, holdingId) {
 function saveHolding(accId, holdingId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
   const name = document.getElementById('hold-name').value.trim();
-  const qty = parseFloat(document.getElementById('hold-qty').value);
-  const price = parseFloat(document.getElementById('hold-price').value);
+  const qty = parseAmount(document.getElementById('hold-qty').value);
+  const price = parseAmount(document.getElementById('hold-price').value);
   const avgStr = document.getElementById('hold-avgcost').value;
-  const avgCost = avgStr!=='' && !isNaN(parseFloat(avgStr)) ? Math.round(parseFloat(avgStr)*100) : null;
+  const avgCost = avgStr!=='' && !isNaN(parseAmount(avgStr)) ? Math.round(parseAmount(avgStr)*100) : null;
   if (!name) { showToast('Enter a name','error'); return; }
   if (isNaN(qty) || qty<=0 || isNaN(price) || price<0) { showToast('Enter quantity and price','error'); return; }
   acc.holdings = acc.holdings||[];
@@ -276,7 +276,7 @@ function openUpdatePricesSheet(accId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc || !(acc.holdings||[]).length) return;
   const rows = acc.holdings.map(h=>`
     <div class="form-field"><label class="form-label">${escHtml(h.name)} — ${h.qty} units (${escHtml(acc.currency)}/unit)</label>
-      <input class="form-input mono hold-price-inp" data-hid="${h.id}" type="number" inputmode="decimal" step="any" value="${(h.price/100).toFixed(2)}"></div>`).join('');
+      <input class="form-input mono hold-price-inp" data-hid="${h.id}" type="text" inputmode="decimal" step="any" value="${(h.price/100).toFixed(2)}"></div>`).join('');
   openSheet2('update-prices',`
     <div class="sheet-handle"></div>
     <div class="sheet-title">Update Prices</div>
@@ -290,7 +290,7 @@ function saveUpdatedPrices(accId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
   let bad = false;
   document.querySelectorAll('.hold-price-inp').forEach(inp=>{
-    const v = parseFloat(inp.value);
+    const v = parseAmount(inp.value);
     if (isNaN(v) || v<0) { bad = true; return; }
     const h = acc.holdings.find(x=>x.id===inp.dataset.hid);
     if (h) h.price = Math.round(v*100);
@@ -326,7 +326,7 @@ function openAddAccountSheet(prefill={}) {
         <div style="display:flex;flex-wrap:wrap;gap:10px;padding:4px 0">${colorDots}</div></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">${prefill.isVault?'Actual Balance':'Balance'}</label>
-          <input id="acc-balance" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${prefill.balance!=null?(prefill.balance/100).toFixed(2):''}"></div>
+          <input id="acc-balance" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${prefill.balance!=null?(prefill.balance/100).toFixed(2):''}"></div>
         <div class="form-field"><label class="form-label">Currency</label>
           <select id="acc-currency" class="form-input">${curOpts}</select></div>
       </div>
@@ -334,7 +334,7 @@ function openAddAccountSheet(prefill={}) {
       <div class="form-field"><label class="form-label">Institution (optional)</label>
         <input id="acc-institution" class="form-input" type="text" placeholder="e.g. Revolut" value="${escHtml(prefill.institution||'')}"></div>
       <div class="form-field"><label class="form-label">Savings Goal (optional)</label>
-        <input id="acc-goal" class="form-input mono" type="number" inputmode="decimal" placeholder="e.g. 5000.00" value="${prefill.goalAmount?(prefill.goalAmount/100).toFixed(2):''}"></div>
+        <input id="acc-goal" class="form-input mono" type="text" inputmode="decimal" placeholder="e.g. 5000.00" value="${prefill.goalAmount?(prefill.goalAmount/100).toFixed(2):''}"></div>
       <div style="height:8px"></div>
       <button class="btn-primary" onclick="saveAccount('${prefill.id||''}')">Save Account</button>
     </div>`);
@@ -375,9 +375,9 @@ function saveAccount(editId) {
   const emoji = (document.getElementById('acc-emoji')?.value || '').trim() || null;
   const color = window._newAccColor || null;
   const goalStr = document.getElementById('acc-goal')?.value;
-  const goalAmount = goalStr && parseFloat(goalStr) > 0 ? Math.round(parseFloat(goalStr)*100) : null;
+  const goalAmount = goalStr && parseAmount(goalStr) > 0 ? Math.round(parseAmount(goalStr)*100) : null;
   if (!name) { showToast('Enter account name','error'); return; }
-  const balance = isNaN(parseFloat(balStr)) ? 0 : Math.round(parseFloat(balStr)*100);
+  const balance = isNaN(parseAmount(balStr)) ? 0 : Math.round(parseAmount(balStr)*100);
   const c = defaultConvert(balance, currency);
   const todayStr = new Date().toISOString().slice(0,10);
   if (editId) {

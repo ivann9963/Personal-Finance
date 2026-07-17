@@ -386,14 +386,8 @@ function parseDateStr(s) {
   if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
   return null;
 }
-function parseAmountStr(raw) {
-  let s = (raw||'').trim().replace(/[^0-9.,\-]/g,'');
-  if (!s) return NaN;
-  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
-  if (lastComma > lastDot) s = s.replace(/\./g,'').replace(',','.'); // comma = decimal separator
-  else s = s.replace(/,/g,''); // comma = thousands separator
-  return parseFloat(s);
-}
+// Kept as the CSV-import entry point; the parsing logic now lives in the shared parseAmount().
+function parseAmountStr(raw) { return parseAmount(raw); }
 // Map common bank/export category labels to our internal category ids
 const CATEGORY_ALIASES = {
   groceries: ['groceries','grocery','supermarket','supermarkets','market','convenience store','food shop'],

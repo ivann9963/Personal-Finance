@@ -152,9 +152,9 @@ function openWealthSheet() {
       ${invLine}
       <div class="form-row">
         <div class="form-field"><label class="form-label">Adding per month</label>
-          <input id="wealth-monthly" class="form-input mono" type="number" inputmode="decimal" step="50" value="${(plan.monthly / 100).toFixed(0)}" onchange="updateWealthSheet()"></div>
+          <input id="wealth-monthly" class="form-input mono" type="text" inputmode="decimal" step="50" value="${(plan.monthly / 100).toFixed(0)}" onchange="updateWealthSheet()"></div>
         <div class="form-field"><label class="form-label">Annual return %</label>
-          <input id="wealth-rate" class="form-input mono" type="number" inputmode="decimal" step="0.5" value="${plan.rate}" onchange="updateWealthSheet()"></div>
+          <input id="wealth-rate" class="form-input mono" type="text" inputmode="decimal" step="0.5" value="${plan.rate}" onchange="updateWealthSheet()"></div>
       </div>
       <div class="seg" id="wealth-horizon" style="margin-bottom:16px">${horizonBtns}</div>
       <div style="background:var(--bg-elevated);border-radius:var(--radius);padding:14px 12px 8px;margin-bottom:16px">
@@ -177,8 +177,8 @@ function setWealthYears(y) {
 function updateWealthSheet() {
   const mEl = document.getElementById('wealth-monthly'), rEl = document.getElementById('wealth-rate');
   if (!mEl) return;
-  const monthly = Math.round((parseFloat(mEl.value) || 0) * 100);
-  const rate = Math.min(30, Math.max(-10, parseFloat(rEl.value) || 0));
+  const monthly = Math.round((parseAmount(mEl.value) || 0) * 100);
+  const rate = Math.min(30, Math.max(-10, parseAmount(rEl.value) || 0));
   const years = (S.settings.wealthPlan && S.settings.wealthPlan.years) || wealthPlan().years;
   S.settings.wealthPlan = { monthly, rate, years };
   saveState();

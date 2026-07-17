@@ -6,6 +6,18 @@ function gid() {
 function parseTags(str) {
   return [...new Set((str||'').split(',').map(s => s.trim().replace(/^#+/,'').trim()).filter(Boolean))];
 }
+// Parse a user- or bank-typed amount into a Number, tolerant of both decimal conventions.
+// The LAST-occurring separator is treated as the decimal point, the other as thousands:
+//   "13,90" → 13.9 · "1.234,56" → 1234.56 · "1,234.56" → 1234.56 · "€13.90" → 13.9
+// This is why typing "13,90" must NOT be a blanket comma-strip (that gave 1390).
+function parseAmount(raw) {
+  let s = String(raw==null?'':raw).trim().replace(/[^0-9.,\-]/g,'');
+  if (!s) return NaN;
+  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+  if (lastComma > lastDot) s = s.replace(/\./g,'').replace(/,/g,'.'); // comma = decimal separator
+  else s = s.replace(/,/g,''); // comma = thousands separator
+  return parseFloat(s);
+}
 function escHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -41,12 +53,21 @@ function learnMerchantCategory(merchant, category) {
 function mergeSavedState(p) {
   return {...defaultState(), ...p, settings: {...defaultState().settings, ...(p.settings||{})}};
 }
+let _loadError = null; // set when saved data couldn't be parsed, so the UI can offer recovery
 function loadState() {
+  let raw = null;
+  try { raw = localStorage.getItem(STORAGE_KEY); } catch(e) { /* storage blocked */ }
+  if (raw == null || raw === '') return defaultState();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
     return mergeSavedState(JSON.parse(raw));
-  } catch(e) { return defaultState(); }
+  } catch(e) {
+    // NEVER silently wipe a finance app's whole history on a parse error. Preserve the unreadable
+    // data under a separate key (so the next saveState can't clobber it) and flag it so the app can
+    // warn the user and offer to restore from a backup instead of pretending they're a new user.
+    _loadError = { at: Date.now(), bytes: raw.length };
+    try { localStorage.setItem(STORAGE_KEY + '__corrupt_' + Date.now(), raw); } catch(_){}
+    return defaultState();
+  }
 }
 function saveState() {
   try {
@@ -62,14 +83,24 @@ function saveState() {
 function getCurInfo(code) {
   return CURRENCIES.find(c => c.code === code) || {code, symbol:code, name:code};
 }
+// Default: full-precision money (always 2 decimals) so the amount you typed and the amount you
+// see never diverge. compact=true → abbreviated for headline tiles (summary, calendar, insights):
+// big values use "€12K" notation, everything else drops cents, matching the app's dashboard look.
 function formatCurrency(cents, code, compact=false) {
   if (cents == null || isNaN(cents)) return '—';
   const amt = cents / 100;
   try {
+    if (compact) {
+      const big = Math.abs(amt) >= 10000;
+      return new Intl.NumberFormat(undefined, {
+        style:'currency', currency:code,
+        notation: big ? 'compact' : 'standard',
+        maximumFractionDigits: big ? 0 : (Math.abs(amt) < 10 ? 2 : 0)
+      }).format(amt);
+    }
     return new Intl.NumberFormat(undefined, {
       style:'currency', currency:code,
-      notation: compact && Math.abs(amt) >= 10000 ? 'compact' : 'standard',
-      maximumFractionDigits: Math.abs(amt) < 10 ? 2 : 0
+      minimumFractionDigits: 2, maximumFractionDigits: 2
     }).format(amt);
   } catch(e) {
     const cur = getCurInfo(code);

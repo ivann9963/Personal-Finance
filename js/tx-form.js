@@ -57,7 +57,7 @@ function buildTxSheet(prefill={}, isUpdate=false) {
         <button class="amt-cur-btn" onclick="openCurrencyPicker('${_txForm.currency}',setTxCurrency)">${curInfo.symbol} <span style="font-size:12px;opacity:.7">${_txForm.currency}</span></button>
         <input id="tx-amount" class="amt-input ${_txForm.type}" type="text" inputmode="decimal" placeholder="0.00" value="${prefill.originalAmount?(prefill.originalAmount/100).toFixed(2):''}">
       </div>
-      ${showRate?`<div class="rate-row">Rate: 1 ${_txForm.currency} = <input id="tx-rate" class="rate-input" type="number" inputmode="decimal" placeholder="…" value="${escHtml(String(rateVal))}"> ${dc}</div>`:''}
+      ${showRate?`<div class="rate-row">Rate: 1 ${_txForm.currency} = <input id="tx-rate" class="rate-input" type="text" inputmode="decimal" placeholder="…" value="${escHtml(String(rateVal))}"> ${dc}</div>`:''}
       ${!isTransfer?`<div class="form-field"><label class="form-label">Category</label>
         <div class="cat-scroll">${catPills}</div></div>`:''}
       <div class="form-field"><label class="form-label">${isTransfer?'Description (optional)':'Merchant / Description'}</label>
@@ -154,11 +154,11 @@ function addTxCategoryInline() {
 }
 function toggleRecurring() { _txForm.recurring=!_txForm.recurring; buildTxSheet(collectTxFormValues(), true); }
 function collectTxFormValues() {
-  const rawAmt = (document.getElementById('tx-amount')?.value||'').replace(/,/g,'');
+  const rawAmt = document.getElementById('tx-amount')?.value||'';
   const toAccId = document.getElementById('tx-to-account')?.value;
   if (toAccId) _txForm.toAccountId = toAccId; // keep in sync for rebuilds
   return {
-    originalAmount: parseFloat(rawAmt)*100 || undefined,
+    originalAmount: parseAmount(rawAmt)*100 || undefined,
     originalCurrency: _txForm.currency,
     merchant: document.getElementById('tx-merchant')?.value||'',
     date: document.getElementById('tx-date')?.value||new Date().toISOString().slice(0,10),
@@ -170,7 +170,7 @@ function collectTxFormValues() {
   };
 }
 function saveTx() {
-  const amtStr = (document.getElementById('tx-amount')?.value||'').replace(/,/g,'');
+  const amt = parseAmount(document.getElementById('tx-amount')?.value||'');
   const merchant = document.getElementById('tx-merchant')?.value?.trim()||'';
   const date = document.getElementById('tx-date')?.value;
   const note = document.getElementById('tx-note')?.value?.trim()||'';
@@ -179,18 +179,18 @@ function saveTx() {
   const toAccountId = document.getElementById('tx-to-account')?.value||'';
   const rateInput = document.getElementById('tx-rate');
   const isTransfer = _txForm.type === 'transfer';
-  if (!amtStr || isNaN(parseFloat(amtStr)) || parseFloat(amtStr)<=0) { showToast('Enter an amount','error'); return; }
+  if (isNaN(amt) || amt<=0) { showToast('Enter an amount','error'); return; }
   if (!isTransfer && !merchant) { showToast('Enter a merchant','error'); return; }
   if (isTransfer) {
     if (!accountId || !toAccountId) { showToast('Select both accounts','error'); return; }
     if (accountId === toAccountId) { showToast('Source and destination must be different','error'); return; }
   }
-  const cents = Math.round(parseFloat(amtStr)*100);
+  const cents = Math.round(amt*100);
   const dc = S.settings.defaultCurrency;
   let rate=1, convertedAmount=cents;
   if (_txForm.currency !== dc) {
     if (rateInput?.value) {
-      rate = parseFloat(rateInput.value)||1;
+      rate = parseAmount(rateInput.value)||1;
       convertedAmount = Math.round(cents*rate);
       const k = `${_txForm.currency}_${dc}`;
       S.exchangeRates[k] = rate;

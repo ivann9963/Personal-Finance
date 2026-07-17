@@ -268,7 +268,7 @@ function openAddBudgetSheet(editCat) {
       <div class="form-field"><label class="form-label">Category</label>
         <select id="bud-cat" class="form-input"${existing?' disabled':''}>${catOpts}</select></div>
       <div class="form-field"><label class="form-label">Monthly Amount</label>
-        <input id="bud-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" value="${existing?(existing.amount/100).toFixed(2):''}" style="font-size:20px"></div>
+        <input id="bud-amt" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${existing?(existing.amount/100).toFixed(2):''}" style="font-size:20px"></div>
       <div style="height:8px"></div>
       <button class="btn-primary" onclick="saveBudget('${existing?jsAttr(existing.category):''}')">${existing?'Save Changes':'Save Budget'}</button>
       ${existing?`<div style="height:10px"></div><button class="btn-danger" onclick="deleteBudget('${jsAttr(existing.category)}')">Delete Budget</button>`:''}
@@ -277,7 +277,7 @@ function openAddBudgetSheet(editCat) {
 function openEditBudget(cat) { openAddBudgetSheet(cat); }
 function saveBudget(lockedCat) {
   const cat = lockedCat || document.getElementById('bud-cat').value;
-  const amt = parseFloat(document.getElementById('bud-amt').value);
+  const amt = parseAmount(document.getElementById('bud-amt').value);
   if (!cat||isNaN(amt)||amt<=0) { showToast('Enter a valid amount','error'); return; }
   const existing = S.budgets.findIndex(b=>b.category===cat);
   const bud = {id:gid(),category:cat,amount:Math.round(amt*100),currency:S.settings.defaultCurrency};

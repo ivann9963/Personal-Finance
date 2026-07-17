@@ -39,7 +39,7 @@ function renderObStep() {
         <select id="ob-acc-type" class="form-input">${ACCOUNT_TYPES.map(t=>`<option value="${t.id}">${t.emoji} ${t.name}</option>`).join('')}</select></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">Balance</label>
-          <input id="ob-acc-balance" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00"></div>
+          <input id="ob-acc-balance" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00"></div>
       </div>
       <div class="ob-actions">
         <button class="btn-primary" onclick="obAddAccount()">Continue</button>
@@ -65,7 +65,7 @@ function obNext() { _obStep++; renderObStep(); }
 function obAddAccount() {
   const name=(document.getElementById('ob-acc-name')?.value||'').trim();
   const type=document.getElementById('ob-acc-type')?.value||'checking';
-  const bal=parseFloat(document.getElementById('ob-acc-balance')?.value||'0')||0;
+  const bal=parseAmount(document.getElementById('ob-acc-balance')?.value||'0')||0;
   if (name) {
     const c=defaultConvert(Math.round(bal*100),_obCurrency);
     S.accounts.push({id:gid(),name,type,balance:Math.round(bal*100),currency:_obCurrency,institution:'',convertedBalance:c.ok?c.amount:Math.round(bal*100)});

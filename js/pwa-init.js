@@ -47,5 +47,15 @@ function init() {
   }
   if (typeof initHaptics === 'function') initHaptics(); // overlay haptic switches on nav tabs + buttons (+ watch for new ones)
   if (typeof initCloudBackup === 'function') initCloudBackup(); // adopt magic-link session tokens if present in the URL hash
+  // Saved data couldn't be read — warn instead of silently treating the user as new, and offer
+  // to restore from a backup. Their unreadable data is preserved on-device (see loadState).
+  if (_loadError) {
+    setTimeout(() => confirmDialog({
+      title: "Couldn't open your saved data",
+      message: "The data stored on this device looked corrupted, so it couldn't be loaded. It hasn't been deleted — it's set aside on this device. Restore from a backup file to get right back to where you were.",
+      confirmLabel: 'Restore backup',
+      cancelLabel: 'Not now'
+    }, () => pickImportJSON()), 400);
+  }
 }
 init();

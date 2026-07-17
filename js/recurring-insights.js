@@ -103,7 +103,7 @@ function openSavingsContribution() {
       <div id="sc-newvault-wrap" class="form-field" style="display:${vaults.length?'none':'block'}"><label class="form-label">New fund name</label>
         <input id="sc-newvault" class="form-input" type="text" placeholder="e.g. Emergency Fund"></div>
       <div class="form-field"><label class="form-label">Amount</label>
-        <input id="sc-amt" class="form-input mono" type="number" inputmode="decimal" placeholder="0.00" style="font-size:20px"></div>
+        <input id="sc-amt" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" style="font-size:20px"></div>
       <div class="form-field"><label class="form-label">Frequency</label>
         <select id="sc-freq" class="form-input">
           <option value="weekly">Weekly</option><option value="biweekly">Biweekly</option>
@@ -119,7 +119,7 @@ function saveSavingsContribution() {
     vault = (document.getElementById('sc-newvault')?.value || '').trim();
     if (!vault) { showToast('Name the fund', 'error'); return; }
   }
-  const amt = parseFloat(document.getElementById('sc-amt')?.value);
+  const amt = parseAmount(document.getElementById('sc-amt')?.value);
   const freq = document.getElementById('sc-freq')?.value || 'monthly';
   if (!vault || isNaN(amt) || amt <= 0) { showToast('Enter a valid amount', 'error'); return; }
   const dc = S.settings.defaultCurrency;
@@ -165,7 +165,7 @@ function openEditRecurringSheet(id) {
         <input id="rec-merchant" class="form-input" type="text" value="${escHtml(r.merchant)}"></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">Amount</label>
-          <input id="rec-amount" class="form-input mono" type="number" inputmode="decimal" value="${(r.amount/100).toFixed(2)}"></div>
+          <input id="rec-amount" class="form-input mono" type="text" inputmode="decimal" value="${(r.amount/100).toFixed(2)}"></div>
         <div class="form-field"><label class="form-label">Currency</label>
           <select id="rec-currency" class="form-input">${curOpts}</select></div>
       </div>
@@ -205,9 +205,10 @@ function saveRecurringSchedule(id) {
   const category = document.getElementById('rec-cat')?.value   || r.category;
   const accountId= document.getElementById('rec-account')?.value || r.accountId;
   const startDate= document.getElementById('rec-startdate')?.value || r.startDate;
+  const amt = parseAmount(amtStr);
   if (!merchant) { showToast('Enter a merchant','error'); return; }
-  if (!amtStr || isNaN(parseFloat(amtStr)) || parseFloat(amtStr)<=0) { showToast('Enter an amount','error'); return; }
-  const cents = Math.round(parseFloat(amtStr)*100);
+  if (isNaN(amt) || amt<=0) { showToast('Enter an amount','error'); return; }
+  const cents = Math.round(amt*100);
   const conv  = defaultConvert(cents, currency);
   // Drop future auto-generated entries so they regenerate with the new values
   const today = new Date().toISOString().slice(0,10);
