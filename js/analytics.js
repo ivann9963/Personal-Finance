@@ -153,12 +153,14 @@ function toggleAnalyticsCat(id) {
 function getDateRange(range) {
   const now = new Date();
   const end = new Date(now); end.setHours(23,59,59,999);
-  const start = new Date(now);
-  if (range==='1M') start.setMonth(start.getMonth()-1);
-  else if (range==='3M') start.setMonth(start.getMonth()-3);
-  else if (range==='6M') start.setMonth(start.getMonth()-6);
-  else if (range==='1Y') start.setFullYear(start.getFullYear()-1);
-  else {
+  let start;
+  // Calendar-month ranges: 1M/3M/6M/1Y start on the 1st of the month N-1 months back
+  // (so "1M" is "this month so far", not a rolling 30-day window) and run through today.
+  const monthsBack = {'1M':0, '3M':2, '6M':5, '1Y':11}[range];
+  if (monthsBack !== undefined) {
+    start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+  } else {
+    start = new Date(now);
     // "All" = since the user's first transaction. A fixed year-2000 floor would make the heatmap
     // render hundreds of empty month columns (and the charts hundreds of points) for anyone with
     // only recent data. Fall back to today when there are no transactions.
@@ -359,7 +361,7 @@ function hmColor(intensity) {
 function analyticsRangeFilter() {
   if (_analyticsRange === 'All') return null;
   const {start, end} = getDateRange(_analyticsRange);
-  const labels = {'1M':'Last month','3M':'Last 3 months','6M':'Last 6 months','1Y':'Last year'};
+  const labels = {'1M':'This month','3M':'Last 3 months','6M':'Last 6 months','1Y':'Last year'};
   return { start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10), label: labels[_analyticsRange] || _analyticsRange };
 }
 function filterByMerchant(name) {
