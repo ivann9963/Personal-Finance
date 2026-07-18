@@ -127,4 +127,10 @@ function convert(cents, from, to) {
 function defaultConvert(cents, from) {
   return convert(cents, from, S.settings.defaultCurrency);
 }
+// True when an account is in a non-default currency with no exchange rate available to convert it.
+// Such accounts silently drop out of Net Worth (contribute 0), so the UI uses this to warn the
+// user and prompt for a rate instead of quietly under-reporting their wealth.
+function accountNeedsRate(a) {
+  return a && a.currency !== S.settings.defaultCurrency && getRate(a.currency, S.settings.defaultCurrency) == null;
+}
 

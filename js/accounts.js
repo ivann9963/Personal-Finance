@@ -45,6 +45,7 @@ function renderAccounts() {
     if (a.type==='credit') liabilities+=Math.abs(v); else assets+=v;
   });
   const netWorth = assets - liabilities;
+  const needRate = S.accounts.filter(accountNeedsRate);
   const accTypeInfo = id => ACCOUNT_TYPES.find(t=>t.id===id)||{emoji:'📁'};
   const cards = S.accounts.map((a,i)=>{
     const ati = accTypeInfo(a.type);
@@ -69,7 +70,9 @@ function renderAccounts() {
       </div>
       <div class="acc-bal">
         <div class="acc-bal-main${isLiability?' liability':''}">${formatCurrency(Math.abs(a.balance),a.currency)}</div>
-        ${showConv&&c.ok?`<div class="acc-bal-sub">${formatCurrency(Math.abs(c.amount),dc)}</div>`:''}
+        ${accountNeedsRate(a)
+          ? `<div class="acc-rate-chip" onclick="event.stopPropagation();openSetRateSheet('${jsAttr(a.currency)}')">⚠️ Set rate</div>`
+          : (showConv&&c.ok?`<div class="acc-bal-sub">${formatCurrency(Math.abs(c.amount),dc)}</div>`:'')}
       </div>
     </div>`;
   }).join('');
@@ -79,6 +82,10 @@ function renderAccounts() {
       <div class="acc-sum-card"><div class="acc-sum-lbl">Liabilities</div><div class="acc-sum-val neg">${formatCurrency(liabilities,dc,true)}</div></div>
       <div class="acc-sum-card"><div class="acc-sum-lbl">Net Worth</div><div class="acc-sum-val ${netWorth>=0?'pos':'neg'}">${formatCurrency(netWorth,dc,true)}</div></div>
     </div>
+    ${needRate.length?`<div class="acc-rate-warn" onclick="openSetRateSheet('${jsAttr(needRate[0].currency)}')">
+      <span>⚠️</span>
+      <span><strong>${needRate.length} account${needRate.length>1?'s':''}</strong> not counted above — no ${escHtml(needRate[0].currency)}→${escHtml(dc)} exchange rate. Tap to set it.</span>
+    </div>`:''}
     ${cards||`<div class="empty-state"><div style="font-size:40px;margin-bottom:12px">🏦</div><div class="empty-state-title">No accounts</div><div class="empty-state-desc">Add your bank accounts and cards to track your finances</div></div>`}
     <button class="add-acc-btn" onclick="openAddAccountSheet()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -406,6 +413,37 @@ function saveAccount(editId) {
   }
   saveState(); closeTopSheet(); renderCurrentTab(); // net worth + insights live on other tabs
   showToast(`Account ${editId?'updated':'added'}`,'success');
+}
+// Inline exchange-rate entry, so accounts in a foreign currency can be counted in Net Worth
+// without having to add a transaction first (the only place a rate could be set before).
+function openSetRateSheet(fromCur) {
+  const dc = S.settings.defaultCurrency;
+  const existing = getRate(fromCur, dc);
+  openSheet2('set-rate', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Exchange rate</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px">Accounts in <strong>${escHtml(fromCur)}</strong> need a rate to be counted in your ${escHtml(dc)} net worth. Enter today's rate — you can update it anytime.</div>
+      <div class="form-field"><label class="form-label">Rate</label>
+        <div style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600">
+          <span>1&nbsp;${escHtml(fromCur)}&nbsp;=</span>
+          <input id="set-rate-input" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${existing?escHtml(String(existing)):''}" style="flex:1;font-size:18px">
+          <span>${escHtml(dc)}</span>
+        </div></div>
+      <div style="height:8px"></div>
+      <button class="btn-primary" onclick="saveManualRate('${jsAttr(fromCur)}')">Save Rate</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('set-rate-input')?.focus(), 350);
+}
+function saveManualRate(fromCur) {
+  const dc = S.settings.defaultCurrency;
+  const v = parseAmount(document.getElementById('set-rate-input')?.value || '');
+  if (isNaN(v) || v<=0) { showToast('Enter a valid rate','error'); return; }
+  S.exchangeRates[`${fromCur}_${dc}`] = v;
+  // Refresh cached converted balances for every account in this currency.
+  S.accounts.forEach(a => { if (a.currency===fromCur) { const c=defaultConvert(a.balance,a.currency); a.convertedBalance = c.ok?c.amount:a.balance; } });
+  saveState(); closeTopSheet2(); renderCurrentTab();
+  showToast(`Rate saved · 1 ${fromCur} = ${v} ${dc}`,'success');
 }
 function deleteAccount(id) {
   confirmDialog({title:'Delete account?', message:'Its transactions will be kept.', confirmLabel:'Delete', danger:true}, ()=>{

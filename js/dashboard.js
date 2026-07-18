@@ -43,6 +43,9 @@ function renderDashboard() {
     const c = defaultConvert(a.balance, a.currency);
     return sum + (c.ok ? c.amount : 0);
   }, 0);
+  // Accounts we couldn't convert are excluded from the figure above — flag them so the headline
+  // number is never silently wrong.
+  const needRateCount = S.accounts.filter(accountNeedsRate).length;
   // Sparkline — cumulative net flow over the last 30 days
   const sparkPoints = [];
   for (let i=29;i>=0;i--) {
@@ -102,6 +105,7 @@ function renderDashboard() {
       <div class="hero-label">Net Worth</div>
       <div class="hero-amount${netWorth<0?' negative':''}" id="hero-amount">${formatCurrency(netWorth,dc)}</div>
       ${hasFlow?`<div style="font-size:13px;font-weight:600;margin-top:2px;color:${flow30>=0?'var(--green)':'var(--red)'}">${flow30>=0?'▲':'▼'} ${formatCurrency(Math.abs(flow30),dc)} <span style="color:var(--text-tertiary);font-weight:500">· last 30 days</span></div>`:''}
+      ${needRateCount?`<div class="hero-rate-warn" onclick="switchTab('accounts')">⚠️ ${needRateCount} account${needRateCount>1?'s':''} not included — set an exchange rate</div>`:''}
       <div class="sparkline-wrap"><canvas id="sparkline-canvas" height="48"></canvas></div>
     </div>
     ${showVelocity?`<div class="velocity-strip ${velClass}" onclick="switchTab('analytics')">${escHtml(velText)}</div>`:''}

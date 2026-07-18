@@ -447,6 +447,12 @@ textarea.form-input{resize:none;min-height:72px}
 .gap-8{gap:8px}
 .ml-auto{margin-left:auto}
 
+/* Missing-exchange-rate warnings (account excluded from net worth) */
+.acc-rate-chip{margin-top:3px;display:inline-block;font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.acc-rate-warn{display:flex;gap:10px;align-items:flex-start;margin:0 16px 12px;padding:12px 14px;border-radius:var(--radius);background:var(--amber-bg);border:1px solid var(--amber);color:var(--text-primary);font-size:13px;line-height:1.45;cursor:pointer}
+.acc-rate-warn strong{color:var(--amber)}
+.hero-rate-warn{margin-top:8px;font-size:12.5px;font-weight:600;color:var(--amber);background:var(--amber-bg);border-radius:8px;padding:7px 10px;line-height:1.35;cursor:pointer}
+
 /* ===== Motion & feel ===== */
 /* Staggered list entrance: items fade + rise into place. `both` holds the start
    frame during the inline animation-delay so there's no pre-animation flash. */
