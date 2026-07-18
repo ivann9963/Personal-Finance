@@ -54,12 +54,26 @@ function mergeSavedState(p) {
   return {...defaultState(), ...p, settings: {...defaultState().settings, ...(p.settings||{})}};
 }
 let _loadError = null; // set when saved data couldn't be parsed, so the UI can offer recovery
+// One-time refresh of existing installs to the curated default categories: upsert every default
+// (refreshing name/emoji/colour/order) while KEEPING any custom categories the user added. Runs
+// once, gated by settings.categoriesV2, so later user edits are never clobbered again. Transaction
+// category ids are preserved (defaults keep their ids), so nothing gets orphaned.
+function migrateCategories(state) {
+  if (!state.settings || state.settings.categoriesV2) return state;
+  const byId = new Map((state.categories||[]).map(c => [c.id, c]));
+  const merged = CATEGORIES.map(def => ({ ...(byId.get(def.id) || {}), ...def }));
+  const defaultIds = new Set(CATEGORIES.map(c => c.id));
+  (state.categories||[]).forEach(c => { if (!defaultIds.has(c.id)) merged.push(c); }); // keep customs
+  state.categories = merged;
+  state.settings.categoriesV2 = true;
+  return state;
+}
 function loadState() {
   let raw = null;
   try { raw = localStorage.getItem(STORAGE_KEY); } catch(e) { /* storage blocked */ }
   if (raw == null || raw === '') return defaultState();
   try {
-    return mergeSavedState(JSON.parse(raw));
+    return migrateCategories(mergeSavedState(JSON.parse(raw)));
   } catch(e) {
     // NEVER silently wipe a finance app's whole history on a parse error. Preserve the unreadable
     // data under a separate key (so the next saveState can't clobber it) and flag it so the app can
