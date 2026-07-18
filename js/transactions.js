@@ -3,7 +3,6 @@ function renderTransactions() {
   const el = document.getElementById('tab-transactions');
   const accOpts = S.accounts.map(a=>`<button class="filter-chip${_txFilter===a.id?' active':''}" onclick="setTxFilter('${a.id}')">${escHtml(a.name)}</button>`).join('');
   el.innerHTML = `
-    <div id="ptr-indicator" class="ptr"><div class="ptr-spin"></div>Refreshing…</div>
     <div class="tx-search">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input type="text" placeholder="Search transactions…" value="${escHtml(_txSearch)}" oninput="setTxSearch(this.value)" autocomplete="off" inputmode="search">
@@ -16,7 +15,6 @@ function renderTransactions() {
       ${accOpts}
     </div>
     <div id="tx-list-body"></div>`;
-  setupPTR(el);
   renderTxList();
 }
 function setTxFilter(f) { _txDateFilter=null; _txFilter=f; _txPage=1; renderTransactions(); } // tapping a chip = fresh manual filter, all dates
@@ -165,26 +163,6 @@ function setupLongPressTx(row) {
   },{passive:true});
   inner.addEventListener('touchend', ()=>clearTimeout(_longPressTimer));
   inner.addEventListener('touchmove', ()=>clearTimeout(_longPressTimer));
-}
-function setupPTR(container) {
-  let startY=0, active=false;
-  container.addEventListener('touchstart', e=>{
-    if (container.scrollTop===0) { startY=e.touches[0].clientY; active=true; }
-  },{passive:true});
-  container.addEventListener('touchmove', e=>{
-    if (!active) return;
-    const dy = e.touches[0].clientY-startY;
-    const ind = document.getElementById('ptr-indicator');
-    if (ind && dy>0) ind.classList.add('ptr-active');
-  },{passive:true});
-  container.addEventListener('touchend', ()=>{
-    if (!active) return; active=false;
-    const ind = document.getElementById('ptr-indicator');
-    if (ind?.classList.contains('ptr-active')) {
-      renderTxList();
-      setTimeout(()=>ind.classList.remove('ptr-active'), 400);
-    }
-  });
 }
 function deleteTx(id) {
   resetSwipe(_activeSwipeRow);
