@@ -1,9 +1,32 @@
 // === SETTINGS ===
 const CHEVRON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`;
-// One settings row. `extra` is right-side content (defaults to a chevron); `danger` reddens the label.
-function settingsRow(onclick, icon, label, val, {extra=CHEVRON, danger=false, iconBg='#1C2128'}={}) {
+// Consistent stroke-based (Feather-style) icons for settings rows. A single line-icon set reads far
+// more premium than a column of mismatched emojis. Monochrome — colour comes from .settings-row-icon.
+const _svg = inner => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const ICONS = {
+  theme:    _svg('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/>'),
+  currency: _svg('<line x1="12" y1="1.5" x2="12" y2="22.5"/><path d="M17 5.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>'),
+  calendar: _svg('<rect x="3" y="4.5" width="18" height="17" rx="2"/><line x1="16" y1="2.5" x2="16" y2="6.5"/><line x1="8" y1="2.5" x2="8" y2="6.5"/><line x1="3" y1="10" x2="21" y2="10"/>'),
+  type:     _svg('<polygon points="13 2 4 14 11 14 10 22 20 10 13 10 13 2" fill="currentColor" stroke="none"/>'),
+  account:  _svg('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>'),
+  tag:      _svg('<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.3" fill="currentColor" stroke="none"/>'),
+  recurring:_svg('<polyline points="17 1.5 21 5.5 17 9.5"/><path d="M3 11.5v-2a4 4 0 0 1 4-4h14"/><polyline points="7 22.5 3 18.5 7 14.5"/><path d="M21 12.5v2a4 4 0 0 1-4 4H3"/>'),
+  shield:   _svg('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  alert:    _svg('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+  save:     _svg('<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>'),
+  restore:  _svg('<polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/>'),
+  download: _svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+  file:     _svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>'),
+  undo:     _svg('<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>'),
+  cloud:    _svg('<path d="M18 10h-1.3A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>'),
+  grid:     _svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'),
+  trash2:   _svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>'),
+  trash:    _svg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),
+};
+// One settings row. `extra` is right-side content (defaults to a chevron); `danger` reddens it.
+function settingsRow(onclick, icon, label, val, {extra=CHEVRON, danger=false, iconBg=''}={}) {
   return `<div class="settings-row" onclick="${onclick}">
-    <div class="settings-row-icon" style="background:${iconBg}">${icon}</div>
+    <div class="settings-row-icon${danger?' danger':''}"${iconBg?` style="background:${iconBg}"`:''}>${icon}</div>
     <div class="settings-row-info"><div class="settings-row-lbl"${danger?' style="color:var(--red)"':''}>${label}</div>${val?`<div class="settings-row-val">${val}</div>`:''}</div>
     <div class="settings-row-right">${extra}</div>
   </div>`;
@@ -44,7 +67,7 @@ function openSettings() {
   const backupCard = `
     <div style="margin:8px 16px 4px;padding:16px;border-radius:var(--radius);background:${bk.stale?'var(--red-bg)':'var(--bg-elevated)'};border:1px solid ${bk.stale?'var(--red)':'transparent'}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:18px">${bk.stale?'⚠️':'🛡️'}</span>
+        <span class="backup-card-icon${bk.stale?' stale':''}">${bk.stale?ICONS.alert:ICONS.shield}</span>
         <span style="font-weight:700;font-size:15px">Backup</span>
       </div>
       <div style="font-size:13px;color:var(--text-secondary);line-height:1.45;margin-bottom:12px">
@@ -67,35 +90,35 @@ function openSettings() {
     <div class="sheet-body" style="padding:0 0 max(24px,var(--safe-bottom))">
       <div class="settings-grp-title">Backup &amp; Restore</div>
       ${backupCard}
-      ${settingsRow('openCloudBackupSheet()', '☁️', 'Cloud Backup',
+      ${settingsRow('openCloudBackupSheet()', ICONS.cloud, 'Cloud Backup',
         cloudActive() ? `On — last ${relTimeSince(cloudCfg().lastCloudBackupAt)||'never'}` : cloudEnabled() ? 'Set up — finish signing in' : 'Automatic encrypted backup — set up')}
 
       <div class="settings-grp-title">General</div>
-      ${settingsRow('openThemePicker()', '🎨', 'Theme', themeLabel)}
-      ${settingsRow(`openCurrencyPicker('${S.settings.defaultCurrency}',setDefaultCurrency)`, '💱', 'Default Currency', `${dcInfo.code} — ${dcInfo.name}`)}
-      ${settingsRow('openFirstDayPicker()', '📅', 'Week starts on', S.settings.firstDayOfWeek==='monday'?'Monday':'Sunday')}
+      ${settingsRow('openThemePicker()', ICONS.theme, 'Theme', themeLabel)}
+      ${settingsRow(`openCurrencyPicker('${S.settings.defaultCurrency}',setDefaultCurrency)`, ICONS.currency, 'Default Currency', `${dcInfo.code} — ${dcInfo.name}`)}
+      ${settingsRow('openFirstDayPicker()', ICONS.calendar, 'Week starts on', S.settings.firstDayOfWeek==='monday'?'Monday':'Sunday')}
 
       <div class="settings-grp-title">New Transaction Defaults</div>
-      ${settingsRow('openDefaultTypePicker()', '⚡', 'Default type', defTypeLabel)}
-      ${S.accounts.length ? settingsRow('openDefaultAccountPicker()', '🏦', 'Default account', defAccLabel) : ''}
+      ${settingsRow('openDefaultTypePicker()', ICONS.type, 'Default type', defTypeLabel)}
+      ${S.accounts.length ? settingsRow('openDefaultAccountPicker()', ICONS.account, 'Default account', defAccLabel) : ''}
 
       <div class="settings-grp-title">Manage</div>
-      ${settingsRow('openCategoriesManager()', '🏷️', 'Categories', 'Add, edit, reorder')}
-      ${settingsRow('openRecurringManager()', '🔄', 'Recurring &amp; Subscriptions', 'Manage scheduled payments')}
+      ${settingsRow('openCategoriesManager()', ICONS.tag, 'Categories', 'Add, edit, reorder')}
+      ${settingsRow('openRecurringManager()', ICONS.recurring, 'Recurring &amp; Subscriptions', 'Manage scheduled payments')}
 
       <div class="settings-grp-title">Import &amp; Export</div>
-      ${settingsRow('exportJSON()', '💾', 'Export backup (JSON)', 'Everything: accounts, transactions, budgets, settings')}
-      ${settingsRow('pickImportJSON()', '📂', 'Restore backup (JSON)', 'Load a backup file — puts you right back where you were')}
-      ${settingsRow('openCSVImport()', '📥', 'Import from bank (CSV / Excel)', 'Revolut, N26, Wise, Monzo…')}
-      ${lastImportCount ? settingsRow('undoLastImport()', '↩️', 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
-      ${settingsRow('exportCSV()', '📊', 'Export transactions (CSV)', 'For spreadsheets — cannot be re-imported with full fidelity')}
+      ${settingsRow('exportJSON()', ICONS.save, 'Export backup (JSON)', 'Everything: accounts, transactions, budgets, settings')}
+      ${settingsRow('pickImportJSON()', ICONS.restore, 'Restore backup (JSON)', 'Load a backup file — puts you right back where you were')}
+      ${settingsRow('openCSVImport()', ICONS.download, 'Import from bank (CSV / Excel)', 'Revolut, N26, Wise, Monzo…')}
+      ${lastImportCount ? settingsRow('undoLastImport()', ICONS.undo, 'Undo last import', `Remove ${lastImportCount} imported transaction${lastImportCount!==1?'s':''}`) : ''}
+      ${settingsRow('exportCSV()', ICONS.file, 'Export transactions (CSV)', 'For spreadsheets — cannot be re-imported with full fidelity')}
 
       ${!hasTx ? `<div class="settings-grp-title">Explore</div>
-      ${settingsRow('loadSampleData()', '🎲', 'Load Sample Data', 'Fills the app with demo data to explore')}` : ''}
+      ${settingsRow('loadSampleData()', ICONS.grid, 'Load Sample Data', 'Fills the app with demo data to explore')}` : ''}
 
       <div class="settings-grp-title">Danger Zone</div>
-      ${settingsRow('clearTransactions()', '🧹', 'Delete All Transactions', 'Keeps accounts, budgets &amp; categories', {danger:true, iconBg:'var(--red-bg)'})}
-      ${settingsRow('clearAllData()', '🗑️', 'Clear All Data', 'Erase everything on this device', {danger:true, iconBg:'var(--red-bg)'})}
+      ${settingsRow('clearTransactions()', ICONS.trash2, 'Delete All Transactions', 'Keeps accounts, budgets &amp; categories', {danger:true, iconBg:'var(--red-bg)'})}
+      ${settingsRow('clearAllData()', ICONS.trash, 'Clear All Data', 'Erase everything on this device', {danger:true, iconBg:'var(--red-bg)'})}
 
       <div style="padding:20px 16px;font-size:12px;color:var(--text-tertiary);text-align:center;line-height:1.6">
         Finance v1.0 · All data stored locally on device<br>
