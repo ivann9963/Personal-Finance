@@ -18,26 +18,38 @@ const CURRENCIES = [
   {code:'NZD',symbol:'NZ$',name:'New Zealand Dollar'},{code:'UAH',symbol:'₴',name:'Ukrainian Hryvnia'},
   {code:'RUB',symbol:'₽',name:'Russian Ruble'}
 ];
+// Default categories for new users. IDs are stable (sample data, merchant rules and CSV aliases
+// reference them) — keep existing ids, only add new ones. Ordered by everyday frequency so the
+// most-used ones sit first in the transaction category picker.
 const CATEGORIES = [
-  {id:'food',name:'Food & Dining',emoji:'🍔',color:'#FF6B6B'},
-  {id:'groceries',name:'Groceries',emoji:'🛒',color:'#20BF6B'},
-  {id:'transport',name:'Transport',emoji:'🚗',color:'#4ECDC4'},
-  {id:'housing',name:'Housing',emoji:'🏠',color:'#45B7D1'},
-  {id:'health',name:'Health',emoji:'💊',color:'#96CEB4'},
-  {id:'entertainment',name:'Entertainment',emoji:'🎬',color:'#C39BD3'},
-  {id:'shopping',name:'Shopping',emoji:'🛍️',color:'#F7DC6F'},
-  {id:'income',name:'Work/Income',emoji:'💼',color:'#58A6FF'},
-  {id:'savings',name:'Savings',emoji:'💰',color:'#3FB950'},
-  {id:'travel',name:'Travel',emoji:'✈️',color:'#FF9F43'},
-  {id:'subscriptions',name:'Subscriptions',emoji:'📱',color:'#A29BFE'},
-  {id:'education',name:'Education',emoji:'🎓',color:'#FD79A8'},
-  {id:'pets',name:'Pets',emoji:'🐾',color:'#FDCB6E'},
-  {id:'fitness',name:'Fitness',emoji:'🏋️',color:'#6C5CE7'},
-  {id:'gifts',name:'Gifts',emoji:'🎁',color:'#E17055'},
-  {id:'medical',name:'Medical',emoji:'🏥',color:'#00CEC9'},
-  {id:'bars',name:'Bars & Nightlife',emoji:'🍺',color:'#FFEAA7'},
-  {id:'utilities',name:'Utilities',emoji:'⚡',color:'#74B9FF'},
-  {id:'other',name:'Other',emoji:'❓',color:'#B2BEC3'}
+  {id:'groceries',     name:'Groceries',             emoji:'🛒', color:'#20BF6B'},
+  {id:'food',          name:'Restaurants',           emoji:'🍽️', color:'#FF6B6B'},
+  {id:'coffee',        name:'Coffee & Snacks',       emoji:'☕', color:'#C0894B'},
+  {id:'transport',     name:'Transport',             emoji:'🚌', color:'#4ECDC4'},
+  {id:'fuel',          name:'Fuel & Car',            emoji:'⛽', color:'#5D8CAE'},
+  {id:'shopping',      name:'Shopping',              emoji:'🛍️', color:'#F7B731'},
+  {id:'clothing',      name:'Clothing',              emoji:'👕', color:'#E77FA0'},
+  {id:'housing',       name:'Rent & Home',           emoji:'🏠', color:'#45B7D1'},
+  {id:'utilities',     name:'Bills & Utilities',     emoji:'💡', color:'#F6C445'},
+  {id:'phone',         name:'Phone & Internet',      emoji:'📶', color:'#748FFC'},
+  {id:'entertainment', name:'Entertainment',         emoji:'🎬', color:'#C39BD3'},
+  {id:'subscriptions', name:'Subscriptions',         emoji:'🔁', color:'#A29BFE'},
+  {id:'bars',          name:'Drinks & Nightlife',    emoji:'🍸', color:'#EE5A9B'},
+  {id:'travel',        name:'Travel',                emoji:'✈️', color:'#FF9F43'},
+  {id:'health',        name:'Health',                emoji:'🩺', color:'#26C6A6'},
+  {id:'medical',       name:'Pharmacy',              emoji:'💊', color:'#00CEC9'},
+  {id:'fitness',       name:'Fitness',               emoji:'🏋️', color:'#6C5CE7'},
+  {id:'beauty',        name:'Beauty & Care',         emoji:'💇', color:'#FD79A8'},
+  {id:'education',     name:'Education',             emoji:'🎓', color:'#5C7CFA'},
+  {id:'pets',          name:'Pets',                  emoji:'🐾', color:'#FDCB6E'},
+  {id:'gifts',         name:'Gifts & Donations',     emoji:'🎁', color:'#E17055'},
+  {id:'family',        name:'Family & Kids',         emoji:'👶', color:'#FAB1C4'},
+  {id:'insurance',     name:'Insurance',             emoji:'🛡️', color:'#7F8C9A'},
+  {id:'fees',          name:'Fees & Charges',        emoji:'🧾', color:'#B2BEC3'},
+  {id:'income',        name:'Income',                emoji:'💰', color:'#3FB950'},
+  {id:'savings',       name:'Savings & Investments', emoji:'📈', color:'#4B7BEC'},
+  {id:'cash',          name:'Cash & ATM',            emoji:'🏧', color:'#95A5A6'},
+  {id:'other',         name:'Other',                 emoji:'📦', color:'#8395A7'}
 ];
 const ACCOUNT_TYPES = [
   {id:'checking',name:'Checking',emoji:'🏦'},
