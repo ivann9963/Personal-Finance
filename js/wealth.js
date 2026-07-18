@@ -126,18 +126,18 @@ function wealthPlan() {
     years: p.years || 10,
   };
 }
-function openWealthSheet() {
-  openSheet('wealth', `
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Wealth</div>
-    <div class="sheet-body">
+// Renders into the dedicated Wealth tab (was previously a sheet off the dashboard teaser).
+function renderWealth() {
+  const el = document.getElementById('tab-wealth'); if (!el) return;
+  el.innerHTML = `
+    <div class="wealth-wrap">
       <div class="seg has-ind" id="wealth-seg" style="--seg-n:2;margin-bottom:16px">
         <div class="seg-ind" style="transform:translateX(${_wealthView === 'portfolio' ? 100 : 0}%)"></div>
         <button class="seg-btn${_wealthView === 'projection' ? ' active' : ''}" onclick="setWealthView('projection')">Projection</button>
         <button class="seg-btn${_wealthView === 'portfolio' ? ' active' : ''}" onclick="setWealthView('portfolio')">Portfolio</button>
       </div>
       <div id="wealth-content"></div>
-    </div>`);
+    </div>`;
   renderWealthContent();
 }
 function setWealthView(v) {
@@ -266,14 +266,14 @@ function portfolioHTML() {
       <div style="font-size:40px;margin-bottom:12px">📈</div>
       <div class="empty-state-title">No investments tracked yet</div>
       <div class="empty-state-desc">Mark an account as “Investment” (or add one) to track its value, gains and allocation here — it also feeds your projection.</div>
-      <button class="empty-state-btn" onclick="closeTopSheet();openAddAccountSheet({type:'investment'})">Add investment account</button>
+      <button class="empty-state-btn" onclick="openAddAccountSheet({type:'investment'})">Add investment account</button>
     </div>`;
   }
   const invAccts = S.accounts.filter(a => a.type === 'investment');
   const rows = invAccts.map(a => {
     const cv = defaultConvert(a.balance, a.currency); const val = cv.ok ? cv.amount : a.balance;
     const g = investmentGain(a);
-    return `<div class="port-row" onclick="closeTopSheet();openAccDetail('${a.id}')">
+    return `<div class="port-row" onclick="openAccDetail('${a.id}')">
       <div class="port-dot" style="background:${a.color || '#58A6FF'}"></div>
       <div style="flex:1;min-width:0"><div class="port-name">${escHtml(a.name)}</div>${g ? `<div class="port-gain" style="color:${g.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${g.gain >= 0 ? '▲' : '▼'} ${g.pct >= 0 ? '+' : ''}${g.pct.toFixed(1)}%</div>` : ''}</div>
       <div class="port-val">${formatCurrency(val, dc)}</div>
@@ -308,7 +308,7 @@ function wealthTeaserHTML() {
   const plan = wealthPlan();
   const dc = S.settings.defaultCurrency;
   const grown = projectWealth(netWorthNow(), plan.monthly, plan.rate, plan.years * 12);
-  return `<div class="velocity-strip vel-green" onclick="openWealthSheet()" style="cursor:pointer">
+  return `<div class="velocity-strip vel-green" onclick="switchTab('wealth')" style="cursor:pointer">
     🔮 At ${formatCurrency(plan.monthly, dc, true)}/mo → ~${formatCurrency(grown[grown.length - 1], dc, true)} in ${plan.years} years · plan it →
   </div>`;
 }

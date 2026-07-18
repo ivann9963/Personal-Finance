@@ -1,5 +1,5 @@
 // === ROUTING ===
-const TAB_ORDER = ['dashboard','transactions','plan','analytics','accounts'];
+const TAB_ORDER = ['dashboard','transactions','plan','analytics','accounts','wealth'];
 function switchTab(tab) {
   if (tab === _currentTab) return;
   const from = _currentTab;
@@ -20,10 +20,10 @@ function switchTab(tab) {
   // Update nav
   document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
   // Update header
-  const titles = {dashboard:'Finance',transactions:'Transactions',plan:'Plan',analytics:'Analytics',accounts:'Accounts'};
+  const titles = {dashboard:'Finance',transactions:'Transactions',plan:'Plan',analytics:'Analytics',accounts:'Accounts',wealth:'Wealth'};
   document.getElementById('header-title').textContent = titles[tab] || tab;
-  // Show/hide FAB
-  document.getElementById('fab').classList.toggle('hidden', tab === 'analytics');
+  // Show/hide FAB — no "add transaction" context on the read-only Analytics/Wealth tabs
+  document.getElementById('fab').classList.toggle('hidden', tab === 'analytics' || tab === 'wealth');
   _currentTab = tab;
   // Render if first visit
   if (!_tabsInit[tab]) { _tabsInit[tab]=true; renderTab(tab); }
@@ -35,6 +35,7 @@ function renderTab(tab) {
     case 'plan':         renderPlan(); break;
     case 'analytics':    renderAnalytics(); break;
     case 'accounts':     renderAccounts(); break;
+    case 'wealth':       renderWealth(); break;
   }
 }
 // Mark every tab *except* the current one as needing a fresh render on next visit.
