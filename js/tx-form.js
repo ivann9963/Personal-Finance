@@ -34,13 +34,20 @@ function buildTxSheet(prefill={}, isUpdate=false) {
   const isTransfer = _txForm.type === 'transfer';
   const accOpts   = S.accounts.map(a=>`<option value="${a.id}"${_txForm.accountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
   const toAccOpts = S.accounts.map(a=>`<option value="${a.id}"${_txForm.toAccountId===a.id?' selected':''}>${escHtml(a.name)}</option>`).join('');
-  const catPills = S.categories.map(c=>`
+  // Show the most-used categories first (so the common ones need no scrolling); the full,
+  // searchable set lives behind the "More" tile. Always keep the currently-selected one visible.
+  const topCats = categoriesByUsage().slice(0, 8);
+  if (_txForm.category && !topCats.some(c=>c.id===_txForm.category)) {
+    const sel = S.categories.find(c=>c.id===_txForm.category);
+    if (sel) topCats.unshift(sel);
+  }
+  const catPills = topCats.map(c=>`
     <div class="cat-pill${_txForm.category===c.id?' sel':''}" data-catid="${c.id}" onclick="selectTxCat('${c.id}')">
       <div class="cat-pill-emoji">${c.emoji}</div>
       <div class="cat-pill-name">${escHtml(c.name)}</div>
     </div>`).join('')
-    + `<div class="cat-pill" style="border-style:dashed" onclick="addTxCategoryInline()">
-        <div class="cat-pill-emoji">＋</div><div class="cat-pill-name">New</div></div>`;
+    + `<div class="cat-pill cat-pill--more" onclick="openTxCategoryPicker()">
+        <div class="cat-pill-emoji">${CATPICK_GRID_ICON}</div><div class="cat-pill-name">More</div></div>`;
   const showRate = _txForm.currency !== dc;
   const storedRate = S.exchangeRates[`${_txForm.currency}_${dc}`] || S.exchangeRates[`${dc}_${_txForm.currency}`];
   const rateVal = storedRate ? (S.exchangeRates[`${_txForm.currency}_${dc}`]?storedRate:(1/storedRate).toFixed(6)) : '';
@@ -151,6 +158,56 @@ function addTxCategoryInline() {
     _txForm.category = newId;
     buildTxSheet(collectTxFormValues(), true);
   });
+}
+const CATPICK_GRID_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`;
+// Categories ordered by how often the user has used them (most-used first), then the rest in their
+// existing order. Drives the "top categories" shown up front in the transaction form.
+function categoriesByUsage() {
+  const counts = {};
+  (S.transactions||[]).forEach(t => { if (t.category) counts[t.category] = (counts[t.category]||0)+1; });
+  return S.categories.map((c,i)=>({c,i})).sort((a,b)=>(counts[b.c.id]||0)-(counts[a.c.id]||0) || a.i-b.i).map(x=>x.c);
+}
+// Full, searchable category grid — the escape hatch from the short "top categories" row.
+function openTxCategoryPicker() {
+  const tiles = categoriesByUsage().map(c=>`
+    <button class="catpick-tile${_txForm.category===c.id?' sel':''}" data-name="${escHtml(c.name.toLowerCase())}" onclick="selectTxCatFromPicker('${jsAttr(c.id)}')">
+      <span class="catpick-emoji" style="background:${c.color}22">${c.emoji}</span>
+      <span class="catpick-name">${escHtml(c.name)}</span>
+    </button>`).join('');
+  openSheet2('cat-picker', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Choose category</div>
+    <div class="sheet-body">
+      <input id="catpick-search" class="form-input" type="text" placeholder="Search categories…" autocomplete="off" oninput="filterCatPicker(this.value)" style="margin-bottom:14px">
+      <div class="catpick-grid" id="catpick-grid">${tiles}
+        <button class="catpick-tile catpick-add" onclick="addCatFromPicker()"><span class="catpick-emoji" style="background:var(--bg-elevated)">＋</span><span class="catpick-name">New</span></button>
+      </div>
+      <div id="catpick-empty" class="catpick-empty" style="display:none">No categories match — <button class="link-btn" onclick="addCatFromPicker()">create one</button></div>
+    </div>`);
+  setTimeout(()=>document.getElementById('catpick-search')?.focus(), 350);
+}
+function filterCatPicker(q) {
+  q = (q||'').trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('#catpick-grid .catpick-tile[data-name]').forEach(t => {
+    const hit = !q || t.dataset.name.includes(q);
+    t.style.display = hit ? '' : 'none';
+    if (hit) shown++;
+  });
+  const add = document.querySelector('#catpick-grid .catpick-add');
+  if (add) add.style.display = q ? 'none' : '';
+  const empty = document.getElementById('catpick-empty');
+  if (empty) empty.style.display = (q && shown===0) ? '' : 'none';
+}
+function selectTxCatFromPicker(id) {
+  _txForm.category = id;
+  closeTopSheet2();
+  buildTxSheet(collectTxFormValues(), true);
+  haptic('light');
+}
+function addCatFromPicker() {
+  closeTopSheet2();               // close the picker first…
+  addTxCategoryInline();          // …then open the category editor (rebuilds tx form on save)
 }
 function toggleRecurring() { _txForm.recurring=!_txForm.recurring; buildTxSheet(collectTxFormValues(), true); }
 function collectTxFormValues() {
