@@ -154,7 +154,9 @@ input,select,textarea{font-family:inherit}
 .tx-day-label{font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px}
 .tx-day-net{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-tertiary);font-variant-numeric:tabular-nums}
 .tx-row-wrap{position:relative;overflow:hidden}
-.tx-row{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg);transition:transform 250ms var(--ease-out),background 200ms;touch-action:pan-y;position:relative;z-index:2}
+.tx-row{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg);transition:transform .24s var(--ease-out),background 200ms;touch-action:pan-y;position:relative;z-index:2}
+/* While the finger is down the row must track it 1:1 — no transition, or it lags and rubber-bands. */
+.tx-row.dragging{transition:none}
 .tx-row:active{background:var(--bg-elevated)}
 .tx-cat-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 .tx-info{flex:1;min-width:0}
@@ -500,9 +502,8 @@ textarea.form-input{resize:none;min-height:72px}
 .rise-in{animation:rise-in .44s var(--ease-out) both;will-change:transform,opacity}
 
 /* Tactile press — cards/rows spring inward when touched (Revolut-style). */
-.account-card,.budget-card,.sub-row,.settings-row,.tx-row,.insight-card{transition:background 180ms,transform 240ms var(--spring)}
+.account-card,.budget-card,.sub-row,.settings-row,.insight-card{transition:background 180ms,transform 240ms var(--spring)}
 .account-card:active,.budget-card:active,.sub-row:active,.settings-row:active,.insight-card:active{transform:scale(.972)}
-.tx-row:active{transform:scale(.985)}
 
 /* Progress/goal bars grow from zero on mount (works alongside the width transition
    used for live updates). transform-origin keeps the fill anchored to the left. */
@@ -513,7 +514,7 @@ textarea.form-input{resize:none;min-height:72px}
 @media(prefers-reduced-motion:reduce){
   .rise-in{animation:none}
   .progress-fill{animation:none}
-  .account-card:active,.budget-card:active,.sub-row:active,.settings-row:active,.insight-card:active,.tx-row:active{transform:none}
+  .account-card:active,.budget-card:active,.sub-row:active,.settings-row:active,.insight-card:active{transform:none}
 }
 
 

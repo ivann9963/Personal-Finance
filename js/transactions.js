@@ -127,27 +127,36 @@ function txRowHTML(tx) {
     </div>
   </div>`;
 }
+const TX_SWIPE_OPEN = 128; // px the row opens to reveal Edit + Delete
 function setupSwipeTx(row) {
-  let startX=0, startY=0, moved=false;
+  let startX=0, startY=0, moved=false, decided=false, horiz=false, base=0;
   const inner = row.querySelector('.tx-row'); if (!inner) return;
   inner.addEventListener('touchstart', e=>{
-    startX=e.touches[0].clientX; startY=e.touches[0].clientY; moved=false;
+    startX=e.touches[0].clientX; startY=e.touches[0].clientY; moved=false; decided=false; horiz=false;
+    base = inner === _activeSwipeRow ? -TX_SWIPE_OPEN : 0; // continue from open state if already open
     if (_activeSwipeRow && _activeSwipeRow!==inner) resetSwipe(_activeSwipeRow);
   },{passive:true});
   inner.addEventListener('touchmove', e=>{
     const dx=e.touches[0].clientX-startX, dy=e.touches[0].clientY-startY;
-    if (!moved && Math.abs(dy)>Math.abs(dx)) return;
+    // Decide gesture direction once, from the first meaningful movement.
+    if (!decided && (Math.abs(dx)>6 || Math.abs(dy)>6)) { decided=true; horiz=Math.abs(dx)>Math.abs(dy); }
+    if (!horiz) return;
     moved=true;
-    if (dx < 0) inner.style.transform=`translateX(${Math.max(dx,-128)}px)`;
+    inner.classList.add('dragging'); // 1:1 finger tracking (no transition)
+    let x = base + dx;
+    if (x > 0) x = 0;                                  // can't pull past closed
+    if (x < -TX_SWIPE_OPEN) x = -TX_SWIPE_OPEN - (Math.abs(x)-TX_SWIPE_OPEN)*0.35; // resistance past open
+    inner.style.transform=`translateX(${x}px)`;
   },{passive:true});
   inner.addEventListener('touchend', ()=>{
     if (!moved) return;
+    inner.classList.remove('dragging'); // re-enable the ease-out transition for the snap
     const x = parseFloat(inner.style.transform.replace('translateX(',''))||0;
-    if (x < -80) { inner.style.transform='translateX(-128px)'; _activeSwipeRow=inner; }
+    if (x < -TX_SWIPE_OPEN/2) { inner.style.transform=`translateX(-${TX_SWIPE_OPEN}px)`; _activeSwipeRow=inner; haptic('light'); }
     else resetSwipe(inner);
   });
 }
-function resetSwipe(el) { if(el){el.style.transform='';} _activeSwipeRow=null; }
+function resetSwipe(el) { if(el){el.classList.remove('dragging');el.style.transform='';} if(_activeSwipeRow===el)_activeSwipeRow=null; }
 function setupLongPressTx(row) {
   const inner = row.querySelector('.tx-row'); if (!inner) return;
   const txId = inner.dataset.txid;
