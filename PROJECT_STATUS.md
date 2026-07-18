@@ -140,6 +140,7 @@ A sweep focused on *feel* and *correctness* (not features). Tracked here so noth
 - **Settings icons** — replaced the mismatched emoji column with a consistent Feather-style line-icon set (`ICONS` map in settings.js); Danger Zone red, backup card shield/alert.
 - **Onboarding first-run pass** — constrained the oversized logo, rebuilt "How do you want to start?" as option cards (recommended = Import), added Back nav + step animation + warmer copy.
 - **Default categories overhaul** — comprehensive frequency-ordered set (28) with cleaner emoji + clearer names; new: Coffee & Snacks, Fuel & Car, Clothing, Phone & Internet, Beauty & Care, Family & Kids, Insurance, Fees & Charges, Cash & ATM. All ids preserved; a one-time `migrateCategories()` (gated by `settings.categoriesV2`) refreshes existing installs while keeping custom categories.
+- **Category selection UX** — the tx form now shows the 8 most-used categories first (`categoriesByUsage()`, no scrolling), with a "More" tile opening a searchable 3-column grid picker for the rest.
 
 ### Open — prioritized
 1. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh. _(The new `openSetRateSheet` is the natural place to also show/refresh age.)_
