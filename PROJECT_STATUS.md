@@ -136,15 +136,19 @@ A sweep focused on *feel* and *correctness* (not features). Tracked here so noth
 - **Sliding segmented controls** (Expense/Income/Transfer, Plan tabs) + **springy category pills** that pop and scroll into view.
 - **Money handling** — `parseAmount()` shared locale-tolerant parser (typing `13,90` now = €13.90, was €1390); all numeric inputs switched to `type=text inputmode=decimal`; `formatCurrency()` shows full cents by default (was rounding everything ≥ €10 to whole units); compact tiles keep the abbreviated look.
 - **Corrupt-data recovery** — `loadState()` no longer silently wipes on a parse error; it preserves the unreadable data under a `__corrupt_*` key and prompts to restore from a backup.
+- 🔴 **Foreign-currency accounts no longer silently vanish from Net Worth** — `accountNeedsRate()` detects un-convertible accounts; dashboard hero + Accounts summary show a "N account(s) not included" warning, each affected card gets a tappable "Set rate" chip, and a new `openSetRateSheet()` lets you enter a rate inline (verified end-to-end with a THB account).
 
 ### Open — prioritized
-1. 🔴 **Foreign-currency accounts with no exchange rate are silently excluded from Net Worth.** `dashboard.js:44` and `accounts.js:44` use `c.ok ? c.amount : 0`, so an account whose currency has no stored rate contributes 0 with no warning and no way to fix it (rates are only settable via the tx form). Fix: warning chip on the account + Net-Worth footnote + inline rate entry. **← in progress.**
-2. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh.
+1. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh. _(The new `openSetRateSheet` is the natural place to also show/refresh age.)_
 3. 🟡 **CSV date ambiguity defaults to European silently** (`import-export.js:376`). `03/04/2024` → April 3 for everyone. Fix: add a "Date format DD/MM ⟷ MM/DD" toggle to the mapping step (mirrors the existing Amount-Sign toggle).
 4. 🟡 **No service-worker update signal.** Installed PWA can run stale cached JS after a deploy (see Gotchas). Fix: detect the new worker taking control → "Update ready — tap to refresh" toast.
 5. 🟢 **Amount/date/category inputs lack screen-reader labels** — add `aria-label`s (amount field is only a `0.00` placeholder to VoiceOver).
 6. 🟢 **Large CSV/Excel parse has no loading state** — a big file looks frozen; add a "Reading file…" indicator.
 7. 🟢 **CSV duplicates are skipped and only reported after import**, not pre-previewed (acceptable — `undoLastImport` provides recovery).
+8. 🟡 **First-run / onboarding experience needs a dedicated UX pass** — walk through opening the app for the very first time (welcome → currency → first account → "how do you want to start") and improve the flow, copy, guidance and feel end-to-end, not just verify it works. Currently 3 steps in `onboarding.js`; empty states after "Start fresh" also part of this. _(Requested 2026-07-17.)_
+
+### Verify next session (uncommitted verification only)
+- All fixes above pass the 178-test suite and were driven in a headless Chromium (`scratchpad/*.js`) with screenshots. The **onboarding pass (#8) is not started.**
 
 ## What's left (prioritized — start here next session)
 _Analytics customization (reorder / sort / custom order / show-hide) is **fully done** — see item #24 above._
