@@ -143,6 +143,7 @@ A sweep focused on *feel* and *correctness* (not features). Tracked here so noth
 - **Category selection UX** — the tx form now shows the 8 most-used categories first (`categoriesByUsage()`, no scrolling), with a "More" tile opening a searchable 3-column grid picker for the rest.
 - **Transaction swipe fixed** — the motion pass had put a springy (overshoot) transform transition on `.tx-row`; now ease-out + `dragging` disables the transition for 1:1 finger tracking, with gesture-lock, resistance and a snap haptic.
 - **Wealth redesign** — split into Projection (scenario range band: conservative/expected/optimistic, contributions-vs-growth split, "today's money" inflation toggle, milestones) and Portfolio (invested/value/gain, allocation donut, per-account performance; empty state to add an investment account). Engine (`projectWealth`, `monthsToReach`, `investmentSummary`) unchanged.
+- **Motion-class sweep** (after the swipe fix) — removed the misfiring pull-to-refresh (fired on any 1px pull, nothing to fetch on a local app) and de-bounced the segment sliders (`.seg-ind`/`.type-seg-ind` `--spring`→`--ease-out`). Audited the other gestures: sheet swipe-to-dismiss and category reorder already disable their transition while dragging (correct).
 
 ### Open — prioritized
 1. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh. _(The new `openSetRateSheet` is the natural place to also show/refresh age.)_
