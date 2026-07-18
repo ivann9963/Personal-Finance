@@ -489,6 +489,27 @@ textarea.form-input{resize:none;min-height:72px}
 .gap-8{gap:8px}
 .ml-auto{margin-left:auto}
 
+/* Wealth — projection + portfolio */
+.section-label{font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.wealth-headline{text-align:center;margin:8px 0 2px}
+.wealth-headline-amt{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+.wealth-headline-sub{font-size:12.5px;color:var(--text-secondary);margin-top:4px}
+.wealth-headline-split{font-size:12px;color:var(--text-tertiary);margin-top:2px}
+.wealth-toggle{font-size:12.5px;font-weight:600;color:var(--text-secondary);background:var(--bg-elevated);border-radius:20px;padding:7px 14px;transition:background .2s,color .2s}
+.wealth-toggle.on{background:var(--accent-bg);color:var(--accent)}
+.wealth-ms-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border)}
+.port-summary{display:flex;gap:10px;margin-bottom:4px}
+.port-summary>div{flex:1;background:var(--bg-elevated);border-radius:var(--radius);padding:12px;text-align:center}
+.port-sum-lbl{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px}
+.port-sum-val{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;margin-top:3px}
+.port-gainpct{text-align:center;font-size:13px;font-weight:600;margin:8px 0 2px}
+.port-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.port-row:active{background:var(--bg-elevated)}
+.port-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.port-name{font-size:15px;font-weight:600}
+.port-gain{font-size:12px;margin-top:2px}
+.port-val{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px}
+
 /* Missing-exchange-rate warnings (account excluded from net worth) */
 .acc-rate-chip{margin-top:3px;display:inline-block;font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 8px;border-radius:10px;white-space:nowrap}
 .acc-rate-warn{display:flex;gap:10px;align-items:flex-start;margin:0 16px 12px;padding:12px 14px;border-radius:var(--radius);background:var(--amber-bg);border:1px solid var(--amber);color:var(--text-primary);font-size:13px;line-height:1.45;cursor:pointer}

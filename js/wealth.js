@@ -111,109 +111,195 @@ function syncHoldingsValue(acc) {
   recordValuePoint(acc, v);
 }
 
-// --- Future Wealth sheet ---
+// --- Wealth sheet (Projection + Portfolio) ---
 const WEALTH_MILESTONES = [1000000, 2500000, 5000000, 10000000, 25000000, 50000000, 100000000, 200000000]; // cents
+const WEALTH_RATE_SPREAD = 3;   // ± percentage points → the conservative/optimistic band
+const WEALTH_INFLATION = 2.5;   // used only for the "today's money" toggle
+const WEALTH_HORIZONS = [5, 10, 20, 30];
+let _wealthView = 'projection';
+let _wealthReal = false; // show the projection in today's (inflation-adjusted) money
 function wealthPlan() {
   const p = S.settings.wealthPlan || {};
   return {
     monthly: p.monthly != null ? p.monthly : Math.max(0, avgMonthlySavings()),
-    rate: p.rate != null ? p.rate : 5,
+    rate: p.rate != null ? p.rate : 6,
     years: p.years || 10,
   };
 }
 function openWealthSheet() {
-  const plan = wealthPlan();
-  const dc = S.settings.defaultCurrency;
-  const inv = investmentSummary();
-  const invLine = inv ? `
-    <div style="display:flex;gap:10px;margin-bottom:16px">
-      <div style="flex:1;background:var(--bg-elevated);border-radius:var(--radius);padding:12px">
-        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Invested</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px">${formatCurrency(inv.basis, dc, true)}</div>
-      </div>
-      <div style="flex:1;background:var(--bg-elevated);border-radius:var(--radius);padding:12px">
-        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Value now</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px">${formatCurrency(inv.value, dc, true)}</div>
-      </div>
-      <div style="flex:1;background:var(--bg-elevated);border-radius:var(--radius);padding:12px">
-        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Gain</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${formatCurrency(inv.gain, dc, true)} · ${inv.pct >= 0 ? '+' : ''}${inv.pct.toFixed(1)}%</div>
-      </div>
-    </div>` : '';
-  const horizonBtns = [5, 10, 20, 30].map(y =>
-    `<button class="seg-btn${plan.years === y ? ' active' : ''}" data-years="${y}" onclick="setWealthYears(${y})">${y}y</button>`).join('');
   openSheet('wealth', `
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Future Wealth</div>
+    <div class="sheet-title">Wealth</div>
     <div class="sheet-body">
-      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px">
-        Starting from your net worth of <strong>${formatCurrency(netWorthNow(), dc)}</strong>, here's where steady saving takes you. The gap between the two lines is compounding doing the work.
+      <div class="seg has-ind" id="wealth-seg" style="--seg-n:2;margin-bottom:16px">
+        <div class="seg-ind" style="transform:translateX(${_wealthView === 'portfolio' ? 100 : 0}%)"></div>
+        <button class="seg-btn${_wealthView === 'projection' ? ' active' : ''}" onclick="setWealthView('projection')">Projection</button>
+        <button class="seg-btn${_wealthView === 'portfolio' ? ' active' : ''}" onclick="setWealthView('portfolio')">Portfolio</button>
       </div>
-      ${invLine}
-      <div class="form-row">
-        <div class="form-field"><label class="form-label">Adding per month</label>
-          <input id="wealth-monthly" class="form-input mono" type="text" inputmode="decimal" step="50" value="${(plan.monthly / 100).toFixed(0)}" onchange="updateWealthSheet()"></div>
-        <div class="form-field"><label class="form-label">Annual return %</label>
-          <input id="wealth-rate" class="form-input mono" type="text" inputmode="decimal" step="0.5" value="${plan.rate}" onchange="updateWealthSheet()"></div>
-      </div>
-      <div class="seg" id="wealth-horizon" style="margin-bottom:16px">${horizonBtns}</div>
-      <div style="background:var(--bg-elevated);border-radius:var(--radius);padding:14px 12px 8px;margin-bottom:16px">
-        <div id="wealth-headline" style="font-size:14px;font-weight:700;margin:0 4px 10px"></div>
-        <div style="height:180px"><canvas id="wealth-chart"></canvas></div>
-      </div>
-      <div id="wealth-milestones"></div>
-      <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">
-        A projection, not a promise — markets vary year to year. 5% is a cautious long-run mixed-portfolio guess; world stock indexes have averaged ~7% before inflation. Your inputs are saved.
-      </div>
+      <div id="wealth-content"></div>
     </div>`);
-  requestAnimationFrame(updateWealthSheet);
+  renderWealthContent();
+}
+function setWealthView(v) {
+  _wealthView = v;
+  const ind = document.querySelector('#wealth-seg .seg-ind');
+  if (ind) ind.style.transform = `translateX(${v === 'portfolio' ? 100 : 0}%)`;
+  document.querySelectorAll('#wealth-seg .seg-btn').forEach((b, i) => b.classList.toggle('active', i === (v === 'portfolio' ? 1 : 0)));
+  renderWealthContent();
+}
+function renderWealthContent() {
+  const el = document.getElementById('wealth-content'); if (!el) return;
+  if (_wealthView === 'portfolio') { el.innerHTML = portfolioHTML(); requestAnimationFrame(drawPortfolio); }
+  else { el.innerHTML = projectionHTML(); requestAnimationFrame(drawProjection); }
+}
+function projectionHTML() {
+  const plan = wealthPlan();
+  const dc = S.settings.defaultCurrency;
+  const horizonBtns = WEALTH_HORIZONS.map(y =>
+    `<button class="seg-btn${plan.years === y ? ' active' : ''}" data-years="${y}" onclick="setWealthYears(${y})">${y}y</button>`).join('');
+  return `
+    <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">
+      From your net worth of <strong>${formatCurrency(netWorthNow(), dc)}</strong>, here's where steady investing could take you. The shaded band is the range if returns run lower or higher than expected.
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label class="form-label">Adding / month</label>
+        <input id="wealth-monthly" class="form-input mono" type="text" inputmode="decimal" value="${(plan.monthly / 100).toFixed(0)}" oninput="drawProjection()"></div>
+      <div class="form-field"><label class="form-label">Return / year %</label>
+        <input id="wealth-rate" class="form-input mono" type="text" inputmode="decimal" value="${plan.rate}" oninput="drawProjection()"></div>
+    </div>
+    <div class="seg has-ind" id="wealth-horizon" style="--seg-n:4;margin-bottom:14px">
+      <div class="seg-ind" style="transform:translateX(${WEALTH_HORIZONS.indexOf(plan.years) * 100}%)"></div>${horizonBtns}</div>
+    <div class="wealth-headline" id="wealth-headline"></div>
+    <div style="background:var(--bg-elevated);border-radius:var(--radius);padding:12px 10px 6px;margin:12px 0"><div style="height:190px"><canvas id="wealth-chart"></canvas></div></div>
+    <div style="display:flex;justify-content:center;margin-bottom:10px">
+      <button class="wealth-toggle${_wealthReal ? ' on' : ''}" onclick="toggleWealthReal()">Show in today's money</button>
+    </div>
+    <div id="wealth-milestones"></div>
+    <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:12px">A projection, not a promise. The band assumes returns average <span id="wealth-lowhigh">3–9</span>%/yr; “today's money” discounts for ~${WEALTH_INFLATION}% inflation. World stock indexes have averaged ~7% before inflation.</div>`;
 }
 function setWealthYears(y) {
-  S.settings.wealthPlan = { ...wealthPlan(), years: y };
+  S.settings.wealthPlan = { ...wealthPlan(), years: y }; saveState();
+  const ind = document.querySelector('#wealth-horizon .seg-ind');
+  if (ind) ind.style.transform = `translateX(${WEALTH_HORIZONS.indexOf(y) * 100}%)`;
   document.querySelectorAll('#wealth-horizon .seg-btn').forEach(b => b.classList.toggle('active', +b.dataset.years === y));
-  updateWealthSheet();
+  drawProjection();
 }
-// Re-read inputs, persist the plan, redraw chart + milestones. Cheap enough to run on every change.
-function updateWealthSheet() {
+function toggleWealthReal() {
+  _wealthReal = !_wealthReal;
+  const b = document.querySelector('.wealth-toggle'); if (b) b.classList.toggle('on', _wealthReal);
+  drawProjection();
+}
+// Re-read inputs, persist, redraw the scenario band + headline + milestones.
+function drawProjection() {
   const mEl = document.getElementById('wealth-monthly'), rEl = document.getElementById('wealth-rate');
   if (!mEl) return;
-  const monthly = Math.round((parseAmount(mEl.value) || 0) * 100);
-  const rate = Math.min(30, Math.max(-10, parseAmount(rEl.value) || 0));
-  const years = (S.settings.wealthPlan && S.settings.wealthPlan.years) || wealthPlan().years;
-  S.settings.wealthPlan = { monthly, rate, years };
-  saveState();
   const dc = S.settings.defaultCurrency;
-  const start = netWorthNow();
-  const months = years * 12;
-  const grown = projectWealth(start, monthly, rate, months);
-  const flat = projectWealth(start, monthly, 0, months);
-  const final = grown[grown.length - 1];
-  const contributed = flat[flat.length - 1];
-  const growthPart = final - contributed;
+  const monthly = Math.round((parseAmount(mEl.value) || 0) * 100);
+  const rate = Math.min(30, Math.max(-5, parseAmount(rEl.value) || 0));
+  const years = (S.settings.wealthPlan && S.settings.wealthPlan.years) || wealthPlan().years;
+  S.settings.wealthPlan = { monthly, rate, years }; saveState();
+  const start = netWorthNow(), months = years * 12;
+  const lowRate = Math.max(0, rate - WEALTH_RATE_SPREAD), highRate = rate + WEALTH_RATE_SPREAD;
+  const gExp = projectWealth(start, monthly, rate, months);
+  const gLow = projectWealth(start, monthly, lowRate, months);
+  const gHigh = projectWealth(start, monthly, highRate, months);
+  const gCon = projectWealth(start, monthly, 0, months);
+  const yi = []; for (let y = 0; y <= years; y++) yi.push(y * 12);
+  const disc = (v, mi) => _wealthReal ? Math.round(v / Math.pow(1 + WEALTH_INFLATION / 100, mi / 12)) : v;
+  const low = yi.map(i => disc(gLow[i], i)), high = yi.map(i => disc(gHigh[i], i)),
+        exp = yi.map(i => disc(gExp[i], i)), con = yi.map(i => disc(gCon[i], i));
+  const finalExp = exp[exp.length - 1], finalLow = low[low.length - 1], finalHigh = high[high.length - 1];
+  const contributed = con[con.length - 1], growthPart = finalExp - contributed;
   document.getElementById('wealth-headline').innerHTML =
-    `~${formatCurrency(final, dc, true)} in ${years} years <span style="color:var(--text-tertiary);font-weight:500">· ${formatCurrency(Math.max(0, growthPart), dc, true)} of it is growth</span>`;
-  // Yearly points keep the chart light (a 30y horizon is 360 monthly points otherwise).
-  const yearIdx = [];
-  for (let y = 0; y <= years; y++) yearIdx.push(y * 12);
-  const nowYear = new Date().getFullYear();
-  mkLine('wealth-chart', yearIdx.map(i => String(nowYear + i / 12)), [ // mkLine formats values as cents
-    { label: 'With growth', data: yearIdx.map(i => grown[i]), borderColor: '#F0B429', backgroundColor: 'rgba(240,180,41,.10)', fill: true, pointRadius: 0, tension: .3, borderWidth: 2 },
-    { label: 'Contributions only', data: yearIdx.map(i => flat[i]), borderColor: '#8B949E', borderDash: [5, 4], pointRadius: 0, tension: .1, borderWidth: 1.5, fill: false },
-  ]);
-  // The next few round milestones and when they land.
+    `<div class="wealth-headline-amt">${formatCurrency(finalExp, dc, true)}</div>
+     <div class="wealth-headline-sub">expected in ${years} years · range ${formatCurrency(finalLow, dc, true)}–${formatCurrency(finalHigh, dc, true)}${_wealthReal ? " · today's money" : ''}</div>
+     <div class="wealth-headline-split">${formatCurrency(Math.max(0, contributed), dc, true)} put in + ${formatCurrency(Math.max(0, growthPart), dc, true)} growth</div>`;
+  const lh = document.getElementById('wealth-lowhigh'); if (lh) lh.textContent = `${lowRate.toFixed(0)}–${highRate.toFixed(0)}`;
+  // Upcoming milestones (based on the expected, nominal path).
   const upcoming = WEALTH_MILESTONES.filter(t => t > start).slice(0, 3);
   const rows = upcoming.map(t => {
     const m = monthsToReach(t, start, monthly, rate);
-    const when = m == null ? 'beyond 50 years' : m <= 12 ? `~${m} month${m !== 1 ? 's' : ''}` : `~${(m / 12).toFixed(m < 60 ? 1 : 0)} years`;
-    const reachedInHorizon = m != null && m <= months;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border)">
-      <span style="font-size:18px">${reachedInHorizon ? '🏁' : '🔭'}</span>
+    const when = m == null ? 'beyond 50y' : m <= 12 ? `~${m} mo` : `~${(m / 12).toFixed(m < 60 ? 1 : 0)} yr`;
+    const reached = m != null && m <= months;
+    return `<div class="wealth-ms-row">
+      <span style="font-size:17px">${reached ? '🏁' : '🔭'}</span>
       <span style="font-weight:600;font-family:'JetBrains Mono',monospace">${formatCurrency(t, dc, true)}</span>
-      <span style="margin-left:auto;font-size:13px;color:${reachedInHorizon ? 'var(--green)' : 'var(--text-tertiary)'}">${when}</span>
+      <span style="margin-left:auto;font-size:13px;color:${reached ? 'var(--green)' : 'var(--text-tertiary)'}">${when}</span>
     </div>`;
   }).join('');
-  document.getElementById('wealth-milestones').innerHTML = rows ?
-    `<div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Milestones</div>${rows}` : '';
+  document.getElementById('wealth-milestones').innerHTML = rows ? `<div class="section-label">Milestones</div>${rows}` : '';
+  // Chart last — it's decorative, so a chart-lib hiccup never blocks the numbers above.
+  const nowYear = new Date().getFullYear();
+  mkProjectionChart('wealth-chart', yi.map(i => String(nowYear + i / 12)), { low, high, exp, con });
+}
+// Scenario band: shaded area between the conservative and optimistic paths, expected line on top,
+// contributions-only dashed for reference.
+function mkProjectionChart(canvasId, labels, s) {
+  destroyChart(canvasId);
+  const canvas = document.getElementById(canvasId); if (!canvas) return;
+  const dc = S.settings.defaultCurrency, cc = chartColors();
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'Low',  data: s.low,  borderColor: 'rgba(240,180,41,0)', pointRadius: 0, fill: false, tension: .3 },
+      { label: 'High', data: s.high, borderColor: 'rgba(240,180,41,0)', backgroundColor: 'rgba(240,180,41,.13)', pointRadius: 0, fill: 0, tension: .3 },
+      { label: 'Expected', data: s.exp, borderColor: '#F0B429', borderWidth: 2.5, pointRadius: 0, fill: false, tension: .3 },
+      { label: 'Contributions', data: s.con, borderColor: cc.text3, borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, tension: .1 },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: {
+          title: items => { const y = Math.round(parseFloat(items[0].label) - new Date().getFullYear()); return `In ${y} year${y !== 1 ? 's' : ''}`; },
+          label: ctx => (ctx.dataset.label === 'Low' || ctx.dataset.label === 'High') ? null : ` ${ctx.dataset.label}: ${formatCurrency(ctx.raw, dc)}` } } },
+      scales: {
+        x: { grid: { color: cc.gridLine }, ticks: { color: cc.text3, maxTicksLimit: 6, callback: function (v) { return Math.round(parseFloat(this.getLabelForValue(v))); } } },
+        y: { grid: { color: cc.gridLine }, ticks: { color: cc.text3, callback: v => formatCurrency(v, dc, true) } } } }
+  });
+}
+// --- Portfolio view ---
+function portfolioHTML() {
+  const dc = S.settings.defaultCurrency;
+  const inv = investmentSummary();
+  if (!inv) {
+    return `<div class="empty-state" style="padding:28px 16px">
+      <div style="font-size:40px;margin-bottom:12px">📈</div>
+      <div class="empty-state-title">No investments tracked yet</div>
+      <div class="empty-state-desc">Mark an account as “Investment” (or add one) to track its value, gains and allocation here — it also feeds your projection.</div>
+      <button class="empty-state-btn" onclick="closeTopSheet();openAddAccountSheet({type:'investment'})">Add investment account</button>
+    </div>`;
+  }
+  const invAccts = S.accounts.filter(a => a.type === 'investment');
+  const rows = invAccts.map(a => {
+    const cv = defaultConvert(a.balance, a.currency); const val = cv.ok ? cv.amount : a.balance;
+    const g = investmentGain(a);
+    return `<div class="port-row" onclick="closeTopSheet();openAccDetail('${a.id}')">
+      <div class="port-dot" style="background:${a.color || '#58A6FF'}"></div>
+      <div style="flex:1;min-width:0"><div class="port-name">${escHtml(a.name)}</div>${g ? `<div class="port-gain" style="color:${g.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${g.gain >= 0 ? '▲' : '▼'} ${g.pct >= 0 ? '+' : ''}${g.pct.toFixed(1)}%</div>` : ''}</div>
+      <div class="port-val">${formatCurrency(val, dc)}</div>
+    </div>`;
+  }).join('');
+  return `
+    <div class="port-summary">
+      <div><div class="port-sum-lbl">Invested</div><div class="port-sum-val">${formatCurrency(inv.basis, dc, true)}</div></div>
+      <div><div class="port-sum-lbl">Value</div><div class="port-sum-val">${formatCurrency(inv.value, dc, true)}</div></div>
+      <div><div class="port-sum-lbl">Gain</div><div class="port-sum-val" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${formatCurrency(inv.gain, dc, true)}</div></div>
+    </div>
+    <div class="port-gainpct" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${inv.pct.toFixed(1)}% all-time</div>
+    ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
+    <div class="section-label" style="margin-top:10px">Accounts</div>
+    ${rows}
+    <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">Gains compare each account's current value to what you put in (its cost basis). Update values or individual holdings from the account screen.</div>`;
+}
+function drawPortfolio() {
+  const invAccts = S.accounts.filter(a => a.type === 'investment');
+  if (invAccts.length > 1 && document.getElementById('port-donut')) {
+    const labels = invAccts.map(a => a.name);
+    const data = invAccts.map(a => { const c = defaultConvert(a.balance, a.currency); return c.ok ? c.amount : a.balance; });
+    const palette = ['#58A6FF', '#3FB950', '#F0B429', '#A29BFE', '#FF6B6B', '#4ECDC4', '#FD79A8', '#FF9F43'];
+    const colors = invAccts.map((a, i) => a.color || palette[i % palette.length]);
+    mkDonut('port-donut', labels, data, colors);
+  }
 }
 
 // Compact dashboard strip: one number that makes the future concrete, tap for the full sheet.
