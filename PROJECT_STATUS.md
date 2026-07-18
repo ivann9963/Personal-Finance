@@ -139,6 +139,7 @@ A sweep focused on *feel* and *correctness* (not features). Tracked here so noth
 - 🔴 **Foreign-currency accounts no longer silently vanish from Net Worth** — `accountNeedsRate()` detects un-convertible accounts; dashboard hero + Accounts summary show a "N account(s) not included" warning, each affected card gets a tappable "Set rate" chip, and a new `openSetRateSheet()` lets you enter a rate inline (verified end-to-end with a THB account).
 - **Settings icons** — replaced the mismatched emoji column with a consistent Feather-style line-icon set (`ICONS` map in settings.js); Danger Zone red, backup card shield/alert.
 - **Onboarding first-run pass** — constrained the oversized logo, rebuilt "How do you want to start?" as option cards (recommended = Import), added Back nav + step animation + warmer copy.
+- **Default categories overhaul** — comprehensive frequency-ordered set (28) with cleaner emoji + clearer names; new: Coffee & Snacks, Fuel & Car, Clothing, Phone & Internet, Beauty & Care, Family & Kids, Insurance, Fees & Charges, Cash & ATM. All ids preserved; a one-time `migrateCategories()` (gated by `settings.categoriesV2`) refreshes existing installs while keeping custom categories.
 
 ### Open — prioritized
 1. 🟡 **Exchange rates never age.** `data.js getRate()` returns a manually-typed rate forever; a stale rate quietly skews converted balances. Fix: stamp rates with a date, show age, allow refresh. _(The new `openSetRateSheet` is the natural place to also show/refresh age.)_
