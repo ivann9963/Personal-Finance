@@ -1,5 +1,8 @@
 // === ONBOARDING ===
 let _obStep=0, _obCurrency='EUR';
+const OB_BACK = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
+// A little "sparkle" for the clean-slate option.
+const OB_FRESH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>`;
 function showOnboarding() {
   document.getElementById('loading').classList.add('hidden');
   document.getElementById('onboarding').classList.remove('hidden');
@@ -7,60 +10,72 @@ function showOnboarding() {
   document.getElementById('fab').classList.add('hidden'); // in case onboarding is re-entered after Clear All Data
   _obStep=0; renderObStep();
 }
+// One "how do you want to start" choice card.
+function obOption(onclick, icon, title, sub, primary=false) {
+  return `<button class="ob-option${primary?' ob-option--primary':''}" onclick="${onclick}">
+    <span class="ob-option-icon">${icon}</span>
+    <span class="ob-option-text"><span class="ob-option-title">${title}</span><span class="ob-option-sub">${sub}</span></span>
+    <span class="ob-option-chev">${CHEVRON}</span>
+  </button>`;
+}
 function renderObStep() {
   const el = document.getElementById('onboarding');
+  const curInfo = getCurInfo(_obCurrency);
   const curOpts = CURRENCIES.map(c=>`<option value="${c.code}"${c.code===_obCurrency?' selected':''}>${c.code} — ${c.name}</option>`).join('');
+  const dots = active => `<div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot${i<=active?' active':''}"></div>`).join('')}</div>`;
+  const topbar = `<div class="ob-top">${_obStep>0?`<button class="ob-back" aria-label="Back" onclick="obBack()">${OB_BACK}</button>`:''}</div>`;
   const steps = [
     `<div class="ob-wrap">
+      ${topbar}
       <svg class="ob-icon" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
         <rect width="192" height="192" rx="40" fill="var(--accent-bg)"/>
         <polyline points="24,148 64,104 96,116 136,68 168,44" stroke="var(--accent)" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="168" cy="44" r="10" fill="var(--accent)"/>
       </svg>
-      <div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot${i<=0?' active':''}"></div>`).join('')}</div>
+      ${dots(0)}
       <div class="ob-title">Welcome to Finance</div>
-      <div class="ob-sub">A personal finance tracker that lives on your phone. Private, offline-first, no sign-up required.</div>
-      <div class="form-field"><label class="form-label">Default Currency</label>
+      <div class="ob-sub">A personal finance tracker that lives on your phone — private, offline-first, no sign-up.</div>
+      <div class="form-field"><label class="form-label">Your currency</label>
         <select id="ob-currency" class="form-input" onchange="_obCurrency=this.value">${curOpts}</select></div>
-      <div style="display:flex;gap:10px;align-items:flex-start;background:var(--bg-elevated);border-radius:var(--radius);padding:12px 14px;margin-top:4px;text-align:left">
-        <span style="font-size:18px;line-height:1.3">🔒</span>
-        <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.45">Your data is stored <strong>only on this device</strong> — no account, no cloud, nobody else can see it. Save a backup from Settings now and then so you don't lose it.</div>
+      <div class="ob-privacy">
+        <span class="ob-privacy-icon">🔒</span>
+        <div>Everything stays <strong>on this device</strong> — no account, no cloud, nobody else can see it. You can save a backup file anytime from Settings.</div>
       </div>
       <div class="ob-actions"><button class="btn-primary" onclick="obNext()">Get Started</button></div>
     </div>`,
     `<div class="ob-wrap">
-      <div style="font-size:56px;margin-bottom:16px">🏦</div>
-      <div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot${i<=1?' active':''}"></div>`).join('')}</div>
+      ${topbar}
+      <div class="ob-emoji">🏦</div>
+      ${dots(1)}
       <div class="ob-title">Add your first account</div>
-      <div class="ob-sub">Add a bank account or card to start tracking.</div>
-      <div class="form-field"><label class="form-label">Account Name</label>
+      <div class="ob-sub">A bank account, card or cash — so your balances and net worth have somewhere to live. You can add more later.</div>
+      <div class="form-field"><label class="form-label">Account name</label>
         <input id="ob-acc-name" class="form-input" type="text" placeholder="e.g. Main Checking"></div>
       <div class="form-field"><label class="form-label">Type</label>
         <select id="ob-acc-type" class="form-input">${ACCOUNT_TYPES.map(t=>`<option value="${t.id}">${t.emoji} ${t.name}</option>`).join('')}</select></div>
-      <div class="form-row">
-        <div class="form-field"><label class="form-label">Balance</label>
-          <input id="ob-acc-balance" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00"></div>
-      </div>
+      <div class="form-field"><label class="form-label">Current balance (${curInfo.symbol})</label>
+        <input id="ob-acc-balance" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00"></div>
       <div class="ob-actions">
         <button class="btn-primary" onclick="obAddAccount()">Continue</button>
         <button class="btn-secondary" onclick="obNext()">Skip for now</button>
       </div>
     </div>`,
     `<div class="ob-wrap">
-      <div style="font-size:56px;margin-bottom:16px">🚀</div>
-      <div class="ob-progress">${[0,1,2].map(i=>`<div class="ob-dot active"></div>`).join('')}</div>
+      ${topbar}
+      ${dots(2)}
       <div class="ob-title">How do you want to start?</div>
-      <div class="ob-sub">Import your real transactions from your bank, restore a backup file, explore with sample data, or start with a clean slate.</div>
-      <div class="ob-actions">
-        <button class="btn-primary" onclick="obImportCSV()">📥 Import from my bank (CSV / Excel)</button>
-        <button class="btn-secondary" onclick="pickImportJSON()">📂 Restore from backup (JSON)</button>
-        <button class="btn-secondary" onclick="obLoadSample()">🎲 Load sample data</button>
-        <button class="btn-secondary" onclick="obFinish()">Start fresh</button>
+      <div class="ob-sub">Pick one — you can change everything later.</div>
+      <div class="ob-option-list">
+        ${obOption('obImportCSV()', ICONS.download, 'Import from my bank', 'CSV or Excel — Revolut, N26, Wise, Monzo…', true)}
+        ${obOption('pickImportJSON()', ICONS.restore, 'Restore a backup', 'From a JSON file you saved before')}
+        ${obOption('obLoadSample()', ICONS.grid, 'Explore with sample data', 'See how it all works with demo data')}
+        ${obOption('obFinish()', OB_FRESH, 'Start fresh', 'A clean slate — add things as you go')}
       </div>
     </div>`
   ];
   el.innerHTML = steps[_obStep]||steps[0];
 }
+function obBack() { if (_obStep>0) { _obStep--; renderObStep(); } }
 function obNext() { _obStep++; renderObStep(); }
 function obAddAccount() {
   const name=(document.getElementById('ob-acc-name')?.value||'').trim();
