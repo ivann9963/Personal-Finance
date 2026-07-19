@@ -472,6 +472,44 @@ async function fetchStockQuote(symbol, key) {
   if (j.c == null || j.c === 0) throw new Error('No quote for ' + symbol);
   return j.c; // current price, assumed in the account's currency
 }
+// --- Price proxy (Cloudflare Worker, see tools/price-proxy-worker.js) ---
+function proxyBase() { return (S.settings.priceProxyUrl || '').replace(/\/+$/, ''); }
+// A stock source is available if the proxy is configured OR a Finnhub key is set.
+function stockSourceReady() { return !!(proxyBase() || S.settings.stockApiKey); }
+let _fxMemo = {}; // per-refresh cache of fetched FX rates
+async function fxRate(from, to) {
+  from = String(from).toUpperCase(); to = String(to).toUpperCase();
+  if (from === to) return 1;
+  const key = from + '_' + to;
+  if (_fxMemo[key] != null) return _fxMemo[key];
+  if (proxyBase()) {
+    try {
+      const r = await fetch(`${proxyBase()}/fx?from=${from}&to=${to}`);
+      if (r.ok) { const j = await r.json(); if (j.rate != null) { _fxMemo[key] = j.rate; S.exchangeRates[key] = j.rate; return j.rate; } }
+    } catch (e) {}
+  }
+  const stored = getRate(from, to); // fall back to any user-entered rate
+  return stored != null ? stored : null;
+}
+// Current price for a stock/ETF ticker, converted into the account's currency. Prefers the proxy
+// (Yahoo, keyless, international + gives the quote's native currency for FX); falls back to Finnhub.
+async function fetchStockPrice(ticker, accountCur) {
+  if (proxyBase()) {
+    const r = await fetch(`${proxyBase()}/quote?symbol=${encodeURIComponent(ticker)}`);
+    if (!r.ok) throw new Error('proxy ' + r.status);
+    const d = await r.json();
+    if (d.price == null) throw new Error('No quote for ' + ticker);
+    let price = d.price;
+    const cur = String(d.currency || accountCur).toUpperCase();
+    if (cur !== String(accountCur).toUpperCase()) {
+      const fx = await fxRate(cur, accountCur);
+      if (fx != null) price *= fx; else throw new Error('No FX ' + cur + '→' + accountCur);
+    }
+    return price;
+  }
+  if (S.settings.stockApiKey) return await fetchStockQuote(ticker, S.settings.stockApiKey); // assumed already in account currency
+  throw new Error('No stock source');
+}
 // Live symbol search across crypto (CoinGecko, keyless) and stocks/ETFs (Finnhub, needs key).
 // Returns [{name, ticker, assetType, cgId?}]. Sources fail independently (offline → [] for that one).
 async function searchSymbols(query) {
@@ -482,10 +520,14 @@ async function searchSymbols(query) {
     const r = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
     if (r.ok) { const j = await r.json(); (j.coins || []).slice(0, 6).forEach(c => out.push({ name: c.name, ticker: String(c.symbol).toUpperCase(), assetType: 'crypto', cgId: c.id })); }
   } catch (e) {}
-  if (S.settings.stockApiKey) {
+  if (proxyBase()) {
+    try {
+      const r = await fetch(`${proxyBase()}/search?q=${encodeURIComponent(q)}`);
+      if (r.ok) { const j = await r.json(); (j.results || []).slice(0, 12).forEach(x => out.push({ name: x.name, ticker: x.symbol, assetType: 'stock', exchange: x.exchange })); }
+    } catch (e) {}
+  } else if (S.settings.stockApiKey) {
     try {
       const r = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${encodeURIComponent(S.settings.stockApiKey)}`);
-      // Keep international listings (e.g. European ETFs like VWCE.DE) — don't strip dotted symbols.
       if (r.ok) { const j = await r.json(); (j.result || []).slice(0, 10).forEach(x => out.push({ name: x.description || x.symbol, ticker: x.symbol, assetType: 'stock' })); }
     } catch (e) {}
   }
@@ -500,7 +542,7 @@ async function fetchSelectedPrice(sel, cur) {
     }
     const map = await fetchCryptoPrices([sel.ticker], cur); return map[sel.ticker.toUpperCase()] ?? null;
   }
-  return await fetchStockQuote(sel.ticker, S.settings.stockApiKey);
+  return await fetchStockPrice(sel.ticker, cur);
 }
 // "updated 5m ago" style freshness label.
 function priceAgo(ts) {
@@ -519,8 +561,8 @@ async function refreshHoldingPrices(accId, silent) {
   accts.forEach(a => (a?.holdings || []).forEach(h => { if (h.ticker && h.assetType) items.push({ acc: a, h }); }));
   if (!items.length) { if (!silent) showToast('Add a ticker + type to a holding first', 'info'); return; }
   const needStock = items.some(t => t.h.assetType === 'stock');
-  if (needStock && !S.settings.stockApiKey) { if (!silent) openStockKeySheet(accId); return; }
-  _pricesBusy = true; if (!silent) showToast('Updating prices…', 'info');
+  if (needStock && !stockSourceReady()) { if (!silent) openPriceProxySheet(accId); return; }
+  _pricesBusy = true; _fxMemo = {}; if (!silent) showToast('Updating prices…', 'info');
   let ok = 0, fail = 0;
   try {
     const cryptoByCur = {};
@@ -533,7 +575,7 @@ async function refreshHoldingPrices(accId, silent) {
       } catch (e) { fail += group.length; }
     }
     for (const t of items.filter(t => t.h.assetType === 'stock')) {
-      try { const p = await fetchStockQuote(t.h.ticker, S.settings.stockApiKey); t.h.price = Math.round(p * 100); ok++; }
+      try { const p = await fetchStockPrice(t.h.ticker, t.acc.currency); t.h.price = Math.round(p * 100); ok++; }
       catch (e) { fail++; if (String(e.message).includes('API key')) { if (!silent) showToast('Stock API key rejected', 'error'); break; } }
     }
     [...new Set(items.map(t => t.acc))].forEach(a => syncHoldingsValue(a));
@@ -555,13 +597,39 @@ function maybeAutoRefreshPrices() {
   const last = S.settings.lastPriceRefresh || 0;
   if (Date.now() - last < 10 * 60 * 1000) return; // refresh at most once every 10 min on tab open
   const needStock = S.accounts.some(a => a.type === 'investment' && (a.holdings || []).some(h => h.assetType === 'stock' && h.ticker));
-  if (needStock && !S.settings.stockApiKey) return; // don't prompt on auto
+  if (needStock && !stockSourceReady()) return; // don't prompt on auto
   refreshHoldingPrices(null, true);
 }
 function toggleAutoRefresh() {
   S.settings.autoRefreshPrices = S.settings.autoRefreshPrices === false ? true : false;
   saveState(); renderCurrentTab();
   showToast(S.settings.autoRefreshPrices === false ? 'Auto-refresh off' : 'Auto-refresh on', 'success');
+}
+// Primary stock/ETF setup: paste the deployed price-proxy URL (see tools/price-proxy-worker.js).
+function openPriceProxySheet(accId) {
+  openSheet2('price-proxy', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Turn on stocks &amp; ETFs</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.55;margin-bottom:12px">Live stock/ETF prices need a tiny free helper (a Cloudflare Worker) — it fetches quotes so your holdings update on their own, no API key, works for European ETFs too.</div>
+      <ol style="font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin:0 0 14px 18px;padding:0">
+        <li>Open <strong>dash.cloudflare.com</strong> → Workers &amp; Pages → Create → Worker.</li>
+        <li>Paste the code from <strong>tools/price-proxy-worker.js</strong> in the repo, click Deploy.</li>
+        <li>Copy the worker URL and paste it below.</li>
+      </ol>
+      <div class="form-field"><label class="form-label">Price proxy URL</label>
+        <input id="proxy-url-input" class="form-input" type="text" inputmode="url" placeholder="https://price-proxy.you.workers.dev" autocomplete="off" value="${escHtml(S.settings.priceProxyUrl || '')}"></div>
+      <button class="btn-primary" onclick="savePriceProxy('${accId || ''}')">Save &amp; turn on</button>
+      ${S.settings.priceProxyUrl ? `<button class="btn-secondary" style="width:100%;margin-top:10px" onclick="S.settings.priceProxyUrl='';saveState();closeTopSheet2();showToast('Proxy removed','success')">Remove</button>` : ''}
+      <button class="btn-secondary" style="width:100%;margin-top:10px" onclick="openStockKeySheet('${accId || ''}')">Use a Finnhub API key instead (US only)</button>
+    </div>`);
+  setTimeout(() => document.getElementById('proxy-url-input')?.focus(), 350);
+}
+function savePriceProxy(accId) {
+  const u = (document.getElementById('proxy-url-input')?.value || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//.test(u)) { showToast('Paste the full https:// URL', 'error'); return; }
+  S.settings.priceProxyUrl = u; saveState(); closeTopSheet2();
+  refreshHoldingPrices(accId || null);
 }
 function openStockKeySheet(accId) {
   openSheet2('stock-key', `

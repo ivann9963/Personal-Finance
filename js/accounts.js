@@ -319,14 +319,14 @@ function renderHoldResults(q) {
   const box = document.getElementById('hold-search-results'); if (!box) return;
   let html = _holdResults.map((r, i) => `<button type="button" class="sym-result" onclick="selectHoldResult(${i})">
       <span class="sym-tick">${escHtml(r.ticker)}</span>
-      <span class="sym-name">${escHtml(r.name)}</span>
+      <span class="sym-name">${escHtml(r.name)}${r.exchange ? ` · ${escHtml(r.exchange)}` : ''}</span>
       <span class="sym-type ${r.assetType}">${r.assetType === 'crypto' ? 'Crypto' : 'Stock'}</span>
     </button>`).join('');
   const onlyCrypto = _holdResults.every(r => r.assetType === 'crypto');
   if (!_holdResults.length) html = `<div class="sym-hint">No matches for “${escHtml(q)}”</div>`;
-  if (!S.settings.stockApiKey && onlyCrypto) {
-    html += `<button type="button" class="sym-enable" onclick="openStockKeySheet()">
-      <span class="sym-enable-t">🔑 Turn on stocks &amp; ETFs</span>
+  if (!stockSourceReady() && onlyCrypto) {
+    html += `<button type="button" class="sym-enable" onclick="openPriceProxySheet()">
+      <span class="sym-enable-t">📈 Turn on stocks &amp; ETFs</span>
       <span class="sym-enable-s">One-time free setup — then search &amp; live updates work on their own</span>
     </button>`;
   }
