@@ -417,6 +417,35 @@ async function fetchStockQuote(symbol, key) {
   if (j.c == null || j.c === 0) throw new Error('No quote for ' + symbol);
   return j.c; // current price, assumed in the account's currency
 }
+// Live symbol search across crypto (CoinGecko, keyless) and stocks/ETFs (Finnhub, needs key).
+// Returns [{name, ticker, assetType, cgId?}]. Sources fail independently (offline → [] for that one).
+async function searchSymbols(query) {
+  const q = (query || '').trim();
+  if (q.length < 2) return [];
+  const out = [];
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`);
+    if (r.ok) { const j = await r.json(); (j.coins || []).slice(0, 6).forEach(c => out.push({ name: c.name, ticker: String(c.symbol).toUpperCase(), assetType: 'crypto', cgId: c.id })); }
+  } catch (e) {}
+  if (S.settings.stockApiKey) {
+    try {
+      const r = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${encodeURIComponent(S.settings.stockApiKey)}`);
+      if (r.ok) { const j = await r.json(); (j.result || []).filter(x => x.symbol && !x.symbol.includes('.')).slice(0, 8).forEach(x => out.push({ name: x.description || x.symbol, ticker: x.symbol, assetType: 'stock' })); }
+    } catch (e) {}
+  }
+  return out;
+}
+// Fetch the current price for a chosen search result, in the given currency.
+async function fetchSelectedPrice(sel, cur) {
+  if (sel.assetType === 'crypto') {
+    if (sel.cgId) {
+      const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(sel.cgId)}&vs_currencies=${encodeURIComponent(cur.toLowerCase())}`);
+      if (r.ok) { const j = await r.json(); const p = j[sel.cgId] && j[sel.cgId][cur.toLowerCase()]; if (p != null) return p; }
+    }
+    const map = await fetchCryptoPrices([sel.ticker], cur); return map[sel.ticker.toUpperCase()] ?? null;
+  }
+  return await fetchStockQuote(sel.ticker, S.settings.stockApiKey);
+}
 // "updated 5m ago" style freshness label.
 function priceAgo(ts) {
   if (!ts) return null;

@@ -483,6 +483,19 @@ textarea.form-input{resize:none;min-height:72px}
 .gap-8{gap:8px}
 .ml-auto{margin-left:auto}
 
+/* Holding symbol search */
+.sym-results{margin-top:6px;display:flex;flex-direction:column;gap:2px}
+.sym-result{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:var(--radius-sm);background:var(--bg-elevated);transition:background .15s}
+.sym-result:active{background:var(--bg-input)}
+.sym-tick{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;flex-shrink:0;min-width:52px}
+.sym-name{flex:1;min-width:0;font-size:13px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sym-type{font-size:10px;font-weight:600;padding:2px 7px;border-radius:8px;flex-shrink:0}
+.sym-type.crypto{background:var(--amber-bg);color:var(--amber)}
+.sym-type.stock{background:var(--accent-bg);color:var(--blue)}
+.sym-hint{font-size:12.5px;color:var(--text-tertiary);padding:8px 12px}
+.sym-keyhint{display:block;width:100%;text-align:left;font-size:12.5px;font-weight:600;color:var(--accent);padding:8px 12px}
+.hold-or{text-align:center;font-size:11.5px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 10px}
+
 /* Wealth — projection + portfolio */
 .wealth-wrap{padding:16px 16px 0}
 .section-label{font-size:12px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}

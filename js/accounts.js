@@ -239,10 +239,17 @@ function openHoldingSheet(accId, holdingId) {
   const at = h?.assetType || '';
   const atOpts = [['','Manual price'],['stock','Stock / ETF'],['crypto','Crypto']]
     .map(([v,l])=>`<option value="${v}"${at===v?' selected':''}>${l}</option>`).join('');
+  _holdCur = acc.currency; _holdResults = [];
   openSheet2('holding',`
     <div class="sheet-handle"></div>
     <div class="sheet-title">${h?'Edit Holding':'Add Holding'}</div>
     <div class="sheet-body">
+      ${!h ? `<div class="form-field">
+        <label class="form-label">Search stock, ETF or crypto</label>
+        <input id="hold-search" class="form-input" type="text" placeholder="e.g. Apple, VWCE, Bitcoin" autocomplete="off" oninput="onHoldSearch(this.value)">
+        <div id="hold-search-results" class="sym-results"></div>
+      </div>
+      <div class="hold-or">or enter it manually</div>` : ''}
       <div class="form-field"><label class="form-label">Name</label>
         <input id="hold-name" class="form-input" type="text" placeholder="e.g. Vanguard All-World, Bitcoin" value="${escHtml(h?.name||'')}"></div>
       <div class="form-row">
@@ -264,6 +271,50 @@ function openHoldingSheet(accId, holdingId) {
       <button class="btn-primary" onclick="saveHolding('${accId}','${holdingId||''}')">Save Holding</button>
       ${h?`<button class="btn-danger" style="width:100%;margin-top:10px" onclick="deleteHolding('${accId}','${holdingId}')">Delete Holding</button>`:''}
     </div>`);
+  if (!h) setTimeout(() => document.getElementById('hold-search')?.focus(), 350);
+}
+// --- Live symbol search inside the holding editor ---
+let _holdResults = [], _holdCur = 'EUR', _holdSearchTimer = null, _holdSearchSeq = 0;
+function onHoldSearch(v) {
+  clearTimeout(_holdSearchTimer);
+  const box = document.getElementById('hold-search-results');
+  const q = (v || '').trim();
+  if (q.length < 2) { if (box) box.innerHTML = ''; return; }
+  if (box) box.innerHTML = `<div class="sym-hint">Searching…</div>`;
+  _holdSearchTimer = setTimeout(async () => {
+    const seq = ++_holdSearchSeq;
+    let results = [];
+    try { results = await searchSymbols(q); } catch (e) {}
+    if (seq !== _holdSearchSeq) return; // a newer keystroke superseded this
+    _holdResults = results;
+    renderHoldResults(q);
+  }, 320);
+}
+function renderHoldResults(q) {
+  const box = document.getElementById('hold-search-results'); if (!box) return;
+  let html = _holdResults.map((r, i) => `<button type="button" class="sym-result" onclick="selectHoldResult(${i})">
+      <span class="sym-tick">${escHtml(r.ticker)}</span>
+      <span class="sym-name">${escHtml(r.name)}</span>
+      <span class="sym-type ${r.assetType}">${r.assetType === 'crypto' ? 'Crypto' : 'Stock'}</span>
+    </button>`).join('');
+  if (!_holdResults.length) html = `<div class="sym-hint">No matches for “${escHtml(q)}”</div>`;
+  if (!S.settings.stockApiKey) html += `<button type="button" class="sym-keyhint" onclick="openStockKeySheet()">+ Add a free Finnhub key to search stocks &amp; ETFs</button>`;
+  box.innerHTML = html;
+}
+async function selectHoldResult(i) {
+  const r = _holdResults[i]; if (!r) return;
+  document.getElementById('hold-name').value = r.name;
+  document.getElementById('hold-ticker').value = r.ticker;
+  document.getElementById('hold-assettype').value = r.assetType;
+  const search = document.getElementById('hold-search'); if (search) search.value = `${r.ticker} · ${r.name}`;
+  const box = document.getElementById('hold-search-results'); if (box) box.innerHTML = '';
+  const priceEl = document.getElementById('hold-price');
+  if (priceEl) { priceEl.value = ''; priceEl.placeholder = 'fetching price…'; }
+  try {
+    const p = await fetchSelectedPrice(r, _holdCur);
+    if (priceEl) { if (p != null) priceEl.value = (Math.round(p * 100) / 100).toFixed(2); else priceEl.placeholder = '0.00'; }
+  } catch (e) { if (priceEl) priceEl.placeholder = '0.00 (enter manually)'; }
+  document.getElementById('hold-qty')?.focus();
 }
 function saveHolding(accId, holdingId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
