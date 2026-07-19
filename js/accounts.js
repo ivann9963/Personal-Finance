@@ -212,14 +212,16 @@ function saveInvestmentValue(id) {
 function holdingsListHTML(acc) {
   const rows = (acc.holdings||[]).map(h=>{
     const hg = holdingGain(h);
+    const initial = (h.ticker||h.name||'?').trim().slice(0,1).toUpperCase();
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer" onclick="openHoldingSheet('${acc.id}','${h.id}')">
+      <div class="hold-icon" style="background:${holdColor(h)}">${escHtml(initial)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:14px">${escHtml(h.name)}</div>
-        <div style="font-size:12px;color:var(--text-tertiary)">${h.qty} × ${formatCurrency(h.price,acc.currency)}</div>
+        <div style="font-size:12px;color:var(--text-tertiary)">${h.ticker?escHtml(h.ticker):'Manual'} · ${fmtQty(h.qty)} units</div>
       </div>
       <div style="text-align:right">
         <div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px">${formatCurrency(holdingValue(h),acc.currency)}</div>
-        ${hg?`<div style="font-size:11.5px;font-weight:600;color:${hg.gain>=0?'var(--green)':'var(--red)'}">${hg.gain>=0?'+':''}${formatCurrency(hg.gain,acc.currency)} · ${hg.pct>=0?'+':''}${hg.pct.toFixed(1)}%</div>`:''}
+        ${hg?`<div style="font-size:11.5px;font-weight:600;color:${hg.gain>=0?'var(--green)':'var(--red)'}">${hg.gain>=0?'+':''}${hg.pct.toFixed(1)}%</div>`:''}
       </div>
     </div>`;
   }).join('');

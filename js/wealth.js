@@ -115,6 +115,29 @@ function investmentSummary() {
 // When an account has holdings, its balance is DERIVED: Σ qty×price (kept via syncHoldingsValue).
 function holdingValue(h) { return Math.round(h.qty * h.price); }
 function holdingsValue(acc) { return (acc.holdings||[]).reduce((s,h)=>s+holdingValue(h),0); }
+// Every position across every investment account, flattened — what Trading212 calls a "pie".
+function allHoldings() {
+  const out = [];
+  S.accounts.filter(a => a.type === 'investment').forEach(a => (a.holdings || []).forEach(h => out.push({ acc: a, h })));
+  return out;
+}
+// Quantities are derived (amount ÷ price) so they're rarely round numbers — nobody buys
+// "14.285714285714286 shares". Show a clean, human quantity instead of the raw float.
+function fmtQty(q) {
+  if (q == null || isNaN(q)) return '';
+  if (Math.abs(q - Math.round(q)) < 1e-9) return String(Math.round(q));
+  let s = q.toFixed(q < 1 ? 6 : 4);
+  s = s.replace(/0+$/, '').replace(/\.$/, '');
+  return s;
+}
+// Stable color per position (by ticker/name) so the same asset keeps its color everywhere —
+// the holdings list, the allocation pie, and any future chart.
+const HOLD_PALETTE = ['#58A6FF', '#3FB950', '#F0B429', '#A29BFE', '#FF6B6B', '#4ECDC4', '#FD79A8', '#FF9F43'];
+function holdColor(h) {
+  const s = h.ticker || h.name || '';
+  let hash = 0; for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return HOLD_PALETTE[Math.abs(hash) % HOLD_PALETTE.length];
+}
 // Per-position gain vs your average buy price (null when avgCost wasn't provided).
 function holdingGain(h) {
   if (h.avgCost == null) return null;
@@ -408,7 +431,34 @@ function portfolioHTML() {
       </div>`;
     }).join('') : `<div style="font-size:12.5px;color:var(--text-secondary);padding:2px 4px 8px">Automate a contribution so investing happens on its own.</div>`}
     <button class="add-acc-btn" style="margin:8px 0 0" onclick="openInvestmentContribution()">+ ${schs.length ? 'Add another' : 'Automate an investment'}</button>`;
-  const rows = invAccts.map(a => {
+  // What you actually own — every position, across every investment account, one flat list
+  // (Trading212-style "pie"), instead of making you drill into each account to see it.
+  const holdings = allHoldings();
+  const allocRows = holdings.map(({ acc, h }) => {
+    const c = defaultConvert(holdingValue(h), acc.currency);
+    return { key: h.ticker || h.name, color: holdColor(h), value: c.ok ? c.amount : holdingValue(h) };
+  }).sort((a, b) => b.value - a.value);
+  const totalAlloc = allocRows.reduce((s, r) => s + r.value, 0);
+  const allocHTML = allocRows.length > 1 ? `
+    <div class="donut-wrap" style="margin:10px auto 0"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>
+    <div class="alloc-legend">
+      ${allocRows.slice(0, 8).map(r => `<div class="alloc-row"><span class="alloc-dot" style="background:${r.color}"></span><span class="alloc-name">${escHtml(r.key)}</span><span class="alloc-pct">${totalAlloc ? ((r.value / totalAlloc) * 100).toFixed(1) : '0.0'}%</span></div>`).join('')}
+      ${allocRows.length > 8 ? `<div class="alloc-more">+${allocRows.length - 8} more</div>` : ''}
+    </div>` : '';
+  const holdRows = holdings.map(({ acc, h }) => {
+    const hg = holdingGain(h);
+    const c = defaultConvert(holdingValue(h), acc.currency);
+    const val = c.ok ? c.amount : holdingValue(h);
+    const initial = (h.ticker || h.name || '?').trim().slice(0, 1).toUpperCase();
+    return `<div class="port-row" onclick="openHoldingSheet('${acc.id}','${h.id}')">
+      <div class="hold-icon" style="background:${holdColor(h)}">${escHtml(initial)}</div>
+      <div style="flex:1;min-width:0"><div class="port-name">${escHtml(h.name)}</div><div class="port-gain" style="color:var(--text-tertiary)">${h.ticker ? escHtml(h.ticker) : 'Manual'}${invAccts.length > 1 ? ` · ${escHtml(acc.name)}` : ''}</div></div>
+      <div style="text-align:right"><div class="port-val">${formatCurrency(val, dc)}</div>${hg ? `<div class="port-gain" style="color:${hg.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${hg.gain >= 0 ? '+' : ''}${hg.pct.toFixed(1)}%</div>` : ''}</div>
+    </div>`;
+  }).join('');
+  // Accounts only get their own section when there's more than one to tell apart — with a
+  // single account it's the same total as above, just noise.
+  const accRows = invAccts.length > 1 ? invAccts.map(a => {
     const cv = defaultConvert(a.balance, a.currency); const val = cv.ok ? cv.amount : a.balance;
     const g = investmentGain(a);
     return `<div class="port-row" onclick="openAccDetail('${a.id}')">
@@ -416,7 +466,7 @@ function portfolioHTML() {
       <div style="flex:1;min-width:0"><div class="port-name">${escHtml(a.name)}</div>${g ? `<div class="port-gain" style="color:${g.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${g.gain >= 0 ? '▲' : '▼'} ${g.pct >= 0 ? '+' : ''}${g.pct.toFixed(1)}%</div>` : ''}</div>
       <div class="port-val">${formatCurrency(val, dc)}</div>
     </div>`;
-  }).join('');
+  }).join('') : '';
   return `
     <div class="port-summary">
       <div><div class="port-sum-lbl">Invested</div><div class="port-sum-val">${formatCurrency(inv.basis, dc, true)}</div></div>
@@ -429,21 +479,21 @@ function portfolioHTML() {
       <button class="price-refresh-now" onclick="refreshHoldingPrices()" title="Refresh now">↻</button>
       <button class="price-auto${S.settings.autoRefreshPrices !== false ? ' on' : ''}" onclick="toggleAutoRefresh()" title="Toggle automatic updates">${S.settings.autoRefreshPrices === false ? 'Off' : 'Auto'}</button>
     </div>` : ''}
-    ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
+    ${allocHTML}
     <button class="btn-primary" style="margin:14px 0 4px" onclick="openHoldingSheet()">+ Add investment</button>
-    <div class="section-label" style="margin-top:14px">Your accounts</div>
-    ${rows}
+    ${holdRows ? `<div class="section-label" style="margin-top:14px">Holdings</div>${holdRows}` : ''}
+    ${accRows ? `<div class="section-label" style="margin-top:14px">Accounts</div>${accRows}` : ''}
     ${recurHTML}
     <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">“Add investment” tracks a fund you own (live). “Automatic contributions” schedule cash into an account on a repeat. Gains compare current value to what you put in.</div>`;
 }
 function drawPortfolio() {
-  const invAccts = S.accounts.filter(a => a.type === 'investment');
-  if (invAccts.length > 1 && document.getElementById('port-donut')) {
-    const labels = invAccts.map(a => a.name);
-    const data = invAccts.map(a => { const c = defaultConvert(a.balance, a.currency); return c.ok ? c.amount : a.balance; });
-    const palette = ['#58A6FF', '#3FB950', '#F0B429', '#A29BFE', '#FF6B6B', '#4ECDC4', '#FD79A8', '#FF9F43'];
-    const colors = invAccts.map((a, i) => a.color || palette[i % palette.length]);
-    mkDonut('port-donut', labels, data, colors);
+  const holdings = allHoldings();
+  if (holdings.length > 1 && document.getElementById('port-donut')) {
+    const rows = holdings.map(({ acc, h }) => {
+      const c = defaultConvert(holdingValue(h), acc.currency);
+      return { label: h.ticker || h.name, value: c.ok ? c.amount : holdingValue(h), color: holdColor(h) };
+    }).sort((a, b) => b.value - a.value);
+    mkDonut('port-donut', rows.map(r => r.label), rows.map(r => r.value), rows.map(r => r.color));
   }
 }
 
