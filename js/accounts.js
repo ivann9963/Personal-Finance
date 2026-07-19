@@ -229,20 +229,29 @@ function holdingsListHTML(acc) {
       ${hasLiveHoldings(acc.id)?`<button onclick="refreshHoldingPrices('${acc.id}')" style="font-size:12px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:4px">↻ Refresh prices</button>`:''}
     </div>
     ${rows||`<div style="font-size:13px;color:var(--text-secondary);padding:8px 0">Track individual positions (ETFs, stocks, crypto) — the account value follows their prices. Add a ticker to pull live prices.</div>`}
-    <button class="btn-secondary" style="width:100%;margin-top:10px;padding:10px" onclick="openHoldingSheet('${acc.id}')">＋ Add holding</button>
+    <button class="btn-secondary" style="width:100%;margin-top:10px;padding:10px" onclick="openHoldingSheet('${acc.id}')">＋ Add investment</button>
   </div>`;
 }
 // Add or edit one position. Prices are per unit, in the ACCOUNT's currency.
 function openHoldingSheet(accId, holdingId) {
-  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
-  const h = (acc.holdings||[]).find(x=>x.id===holdingId);
+  const invAccts = S.accounts.filter(a => a.type === 'investment');
+  const fixed = accId ? S.accounts.find(a => a.id === accId) : null;
+  const h = fixed ? (fixed.holdings || []).find(x => x.id === holdingId) : null;
+  const cur = (fixed || invAccts[0]) ? (fixed || invAccts[0]).currency : S.settings.defaultCurrency;
   const at = h?.assetType || '';
   const atOpts = [['','Manual price'],['stock','Stock / ETF'],['crypto','Crypto']]
     .map(([v,l])=>`<option value="${v}"${at===v?' selected':''}>${l}</option>`).join('');
-  _holdCur = acc.currency; _holdResults = []; _holdMode = h ? 'shares' : 'amount';
+  _holdCur = cur; _holdResults = []; _holdMode = h ? 'shares' : 'amount';
+  // When not opened from a specific account, let the user choose (or create) where it lands.
+  const acctPicker = !fixed ? `<div class="form-field"><label class="form-label">Add to</label>
+        <select id="hold-account" class="form-input" onchange="onHoldAccountChange(this.value)">
+          ${invAccts.map(a=>`<option value="${a.id}">${escHtml(a.name)}</option>`).join('')}
+          <option value="__new__"${invAccts.length?'':' selected'}>+ New investment account…</option>
+        </select>
+        <input id="hold-account-new" class="form-input" type="text" placeholder="New account name (e.g. Brokerage)" style="display:${invAccts.length?'none':'block'};margin-top:8px"></div>` : '';
   openSheet2('holding',`
     <div class="sheet-handle"></div>
-    <div class="sheet-title">${h?'Edit Holding':'Add Holding'}</div>
+    <div class="sheet-title">${h?'Edit investment':'Add investment'}</div>
     <div class="sheet-body">
       ${!h ? `<div class="form-field">
         <label class="form-label">Search stock, ETF or crypto</label>
@@ -252,6 +261,7 @@ function openHoldingSheet(accId, holdingId) {
       <div class="hold-or">or enter it manually</div>` : ''}
       <div class="form-field"><label class="form-label">Name</label>
         <input id="hold-name" class="form-input" type="text" placeholder="e.g. Vanguard All-World, Bitcoin" value="${escHtml(h?.name||'')}"></div>
+      ${acctPicker}
       <div class="form-field">
         <div class="hold-howmuch-head">
           <label class="form-label" style="margin:0">Investment</label>
@@ -262,11 +272,11 @@ function openHoldingSheet(accId, holdingId) {
         </div>
         <div class="form-row" style="margin-top:6px">
           <div class="form-field" style="margin:0">
-            <span id="hold-howmuch-lbl" class="form-label">${_holdMode==='amount'?('Amount ('+escHtml(acc.currency)+')'):'Quantity'}</span>
+            <span id="hold-howmuch-lbl" class="form-label">${_holdMode==='amount'?('Amount ('+escHtml(cur)+')'):'Quantity'}</span>
             <input id="hold-amount" class="form-input mono" type="text" inputmode="decimal" placeholder="e.g. 5000" style="display:${_holdMode==='amount'?'block':'none'}">
             <input id="hold-qty" class="form-input mono" type="text" inputmode="decimal" placeholder="e.g. 12.5" value="${h?h.qty:''}" style="display:${_holdMode==='shares'?'block':'none'}">
           </div>
-          <div class="form-field" style="margin:0"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
+          <div class="form-field" style="margin:0"><label class="form-label">Price / unit (${escHtml(cur)})</label>
             <input id="hold-price" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
         </div>
         <div id="hold-amount-note" style="font-size:11px;color:var(--text-tertiary);margin-top:5px;display:${_holdMode==='amount'?'block':'none'}">Units are worked out from the price — value then tracks the market.</div>
@@ -281,7 +291,7 @@ function openHoldingSheet(accId, holdingId) {
       <div class="form-field"><label class="form-label">Avg buy price / unit (optional — enables gain per holding)</label>
         <input id="hold-avgcost" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="what you paid on average" value="${h&&h.avgCost!=null?(h.avgCost/100).toFixed(2):''}"></div>
       <div style="height:8px"></div>
-      <button class="btn-primary" onclick="saveHolding('${accId}','${holdingId||''}')">Save Holding</button>
+      <button class="btn-primary" onclick="saveHolding('${accId||''}','${holdingId||''}')">${h?'Save':'Add investment'}</button>
       ${h?`<button class="btn-danger" style="width:100%;margin-top:10px" onclick="deleteHolding('${accId}','${holdingId}')">Delete Holding</button>`:''}
     </div>`);
   if (!h) setTimeout(() => document.getElementById('hold-search')?.focus(), 350);
@@ -347,8 +357,25 @@ async function selectHoldResult(i) {
   } catch (e) { if (priceEl) priceEl.placeholder = '0.00 (enter manually)'; }
   document.getElementById('hold-qty')?.focus();
 }
+// When the holding editor is opened without a fixed account, resolve/create the target one.
+function onHoldAccountChange(v) {
+  const nw = document.getElementById('hold-account-new'); if (nw) nw.style.display = v === '__new__' ? 'block' : 'none';
+  if (v && v !== '__new__') { const a = S.accounts.find(x => x.id === v); if (a) { _holdCur = a.currency; const lbl = document.getElementById('hold-howmuch-lbl'); if (lbl && _holdMode === 'amount') lbl.textContent = `Amount (${a.currency})`; } }
+  else _holdCur = S.settings.defaultCurrency;
+}
 function saveHolding(accId, holdingId) {
-  const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
+  let acc;
+  if (accId) acc = S.accounts.find(a => a.id === accId);
+  else {
+    const sel = document.getElementById('hold-account')?.value;
+    if (!sel || sel === '__new__') {
+      const nm = (document.getElementById('hold-account-new')?.value || '').trim() || 'Investments';
+      const dc = S.settings.defaultCurrency; const today = new Date().toISOString().slice(0, 10);
+      acc = { id: gid(), name: nm, type: 'investment', balance: 0, currency: dc, convertedBalance: 0, costBasis: 0, valueHistory: [{ date: today, value: 0 }] };
+      S.accounts.push(acc);
+    } else acc = S.accounts.find(a => a.id === sel);
+  }
+  if (!acc) { showToast('Pick an account', 'error'); return; }
   const name = document.getElementById('hold-name').value.trim();
   const price = parseAmount(document.getElementById('hold-price').value);
   // "Amount" mode: derive units from the money invested ÷ price. "Shares" mode: units entered directly.
@@ -372,8 +399,10 @@ function saveHolding(accId, holdingId) {
   if (h) Object.assign(h, {name, qty, price:Math.round(price*100), avgCost, assetType, ticker});
   else acc.holdings.push({id:gid(), name, qty, price:Math.round(price*100), avgCost, assetType, ticker});
   syncHoldingsValue(acc);
-  saveState(); closeTopSheet2(); openAccDetail(accId); renderCurrentTab();
-  showToast(`Holding ${h?'updated':'added'}`,'success');
+  saveState(); closeTopSheet2(); renderCurrentTab();
+  showToast(`Investment ${h?'updated':'added'}`,'success');
+  // Pull a live price right away if this holding is auto-priceable.
+  if (ticker && assetType && typeof refreshHoldingPrices === 'function') refreshHoldingPrices(acc.id);
 }
 function deleteHolding(accId, holdingId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;

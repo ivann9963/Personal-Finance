@@ -387,18 +387,18 @@ function portfolioHTML() {
   if (!inv) {
     return `<div class="empty-state" style="padding:28px 16px">
       <div style="font-size:40px;margin-bottom:12px">📈</div>
-      <div class="empty-state-title">No investments tracked yet</div>
-      <div class="empty-state-desc">Track an investment account's value, gains and allocation here — or automate a recurring contribution. It also feeds your projection.</div>
-      <button class="empty-state-btn" onclick="openInvestmentContribution()">Set up recurring investment</button>
+      <div class="empty-state-title">Track your investments</div>
+      <div class="empty-state-desc">Search a stock, ETF or coin, enter how much you hold, and its value updates live. It also feeds your projection below.</div>
+      <button class="empty-state-btn" onclick="openHoldingSheet()">+ Add investment</button>
       <div style="height:10px"></div>
-      <button class="btn-secondary" onclick="openAddAccountSheet({type:'investment'})">Add investment account</button>
+      <button class="btn-secondary" onclick="openInvestmentContribution()">Automate a monthly contribution</button>
     </div>`;
   }
   const invAccts = S.accounts.filter(a => a.type === 'investment');
   // Recurring-investment schedules block.
   const schs = investmentSchedules();
   const recurHTML = `
-    <div class="section-label" style="margin-top:16px">Recurring investments</div>
+    <div class="section-label" style="margin-top:16px">Automatic contributions</div>
     ${schs.length ? schs.map(s => {
       const target = S.accounts.find(a => a.id === s.toAccountId);
       return `<div class="port-row" onclick="openEditRecurringSheet('${s.id}')">
@@ -430,10 +430,11 @@ function portfolioHTML() {
       <button class="price-auto${S.settings.autoRefreshPrices !== false ? ' on' : ''}" onclick="toggleAutoRefresh()" title="Toggle automatic updates">${S.settings.autoRefreshPrices === false ? 'Off' : 'Auto'}</button>
     </div>` : ''}
     ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
-    <div class="section-label" style="margin-top:10px">Accounts</div>
+    <button class="btn-primary" style="margin:14px 0 4px" onclick="openHoldingSheet()">+ Add investment</button>
+    <div class="section-label" style="margin-top:14px">Your accounts</div>
     ${rows}
     ${recurHTML}
-    <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">Gains compare each account's current value to what you put in (its cost basis). Update values or individual holdings from the account screen.</div>`;
+    <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">“Add investment” tracks a fund you own (live). “Automatic contributions” schedule cash into an account on a repeat. Gains compare current value to what you put in.</div>`;
 }
 function drawPortfolio() {
   const invAccts = S.accounts.filter(a => a.type === 'investment');
