@@ -492,6 +492,10 @@ textarea.form-input{resize:none;min-height:72px}
 .wealth-headline-split{font-size:12px;color:var(--text-tertiary);margin-top:2px}
 .wealth-toggle{font-size:12.5px;font-weight:600;color:var(--text-secondary);background:var(--bg-elevated);border-radius:20px;padding:7px 14px;transition:background .2s,color .2s}
 .wealth-toggle.on{background:var(--accent-bg);color:var(--accent)}
+.price-refresh-row{display:flex;align-items:center;justify-content:center;gap:8px;margin:8px 0 2px;flex-wrap:wrap}
+.price-ago{font-size:11.5px;color:var(--text-tertiary)}
+.price-auto{font-size:11.5px;font-weight:600;color:var(--text-tertiary);background:var(--bg-elevated);border-radius:20px;padding:7px 12px;transition:background .2s,color .2s}
+.price-auto.on{background:var(--green-bg);color:var(--green)}
 .wealth-ms-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border)}
 .port-summary{display:flex;gap:10px;margin-bottom:4px}
 .port-summary>div{flex:1;background:var(--bg-elevated);border-radius:var(--radius);padding:12px;text-align:center}

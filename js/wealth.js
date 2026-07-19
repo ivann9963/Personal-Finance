@@ -206,6 +206,7 @@ function renderWealth() {
       <div id="wealth-content"></div>
     </div>`;
   renderWealthContent();
+  maybeAutoRefreshPrices();
 }
 function setWealthView(v) {
   _wealthView = v;
@@ -368,7 +369,11 @@ function portfolioHTML() {
       <div><div class="port-sum-lbl">Gain</div><div class="port-sum-val" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${formatCurrency(inv.gain, dc, true)}</div></div>
     </div>
     <div class="port-gainpct" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${inv.pct.toFixed(1)}% all-time</div>
-    ${hasLiveHoldings() ? `<div style="display:flex;justify-content:center;margin:6px 0 2px"><button class="wealth-toggle" onclick="refreshHoldingPrices()">↻ Refresh prices</button></div>` : ''}
+    ${hasLiveHoldings() ? `<div class="price-refresh-row">
+      <span class="price-ago">${S.settings.lastPriceRefresh ? 'Prices ' + priceAgo(S.settings.lastPriceRefresh) : 'Tap to fetch live prices'}</span>
+      <button class="wealth-toggle" onclick="refreshHoldingPrices()">↻ Refresh</button>
+      <button class="price-auto${S.settings.autoRefreshPrices !== false ? ' on' : ''}" onclick="toggleAutoRefresh()" title="Auto-refresh when you open Wealth (max once / 6h)">Auto</button>
+    </div>` : ''}
     ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
     <div class="section-label" style="margin-top:10px">Accounts</div>
     ${rows}
@@ -412,15 +417,25 @@ async function fetchStockQuote(symbol, key) {
   if (j.c == null || j.c === 0) throw new Error('No quote for ' + symbol);
   return j.c; // current price, assumed in the account's currency
 }
-async function refreshHoldingPrices(accId) {
+// "updated 5m ago" style freshness label.
+function priceAgo(ts) {
+  if (!ts) return null;
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 90) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); return d === 1 ? 'yesterday' : `${d}d ago`;
+}
+// `silent` (auto-refresh) suppresses the progress/result toasts and the key prompt.
+async function refreshHoldingPrices(accId, silent) {
   if (_pricesBusy) return;
   const accts = accId ? [S.accounts.find(a => a.id === accId)] : S.accounts.filter(a => a.type === 'investment');
   const items = [];
   accts.forEach(a => (a?.holdings || []).forEach(h => { if (h.ticker && h.assetType) items.push({ acc: a, h }); }));
-  if (!items.length) { showToast('Add a ticker + type to a holding first', 'info'); return; }
+  if (!items.length) { if (!silent) showToast('Add a ticker + type to a holding first', 'info'); return; }
   const needStock = items.some(t => t.h.assetType === 'stock');
-  if (needStock && !S.settings.stockApiKey) { openStockKeySheet(accId); return; }
-  _pricesBusy = true; showToast('Updating prices…', 'info');
+  if (needStock && !S.settings.stockApiKey) { if (!silent) openStockKeySheet(accId); return; }
+  _pricesBusy = true; if (!silent) showToast('Updating prices…', 'info');
   let ok = 0, fail = 0;
   try {
     const cryptoByCur = {};
@@ -434,15 +449,34 @@ async function refreshHoldingPrices(accId) {
     }
     for (const t of items.filter(t => t.h.assetType === 'stock')) {
       try { const p = await fetchStockQuote(t.h.ticker, S.settings.stockApiKey); t.h.price = Math.round(p * 100); ok++; }
-      catch (e) { fail++; if (String(e.message).includes('API key')) { showToast('Stock API key rejected', 'error'); break; } }
+      catch (e) { fail++; if (String(e.message).includes('API key')) { if (!silent) showToast('Stock API key rejected', 'error'); break; } }
     }
     [...new Set(items.map(t => t.acc))].forEach(a => syncHoldingsValue(a));
+    if (ok) S.settings.lastPriceRefresh = Date.now();
     saveState(); renderCurrentTab();
-    if (ok) showToast(`Updated ${ok} price${ok !== 1 ? 's' : ''}${fail ? ` · ${fail} failed` : ''}`, fail ? 'warning' : 'success');
-    else showToast('Could not fetch prices — check tickers / connection', 'error');
+    if (!silent) {
+      if (ok) showToast(`Updated ${ok} price${ok !== 1 ? 's' : ''}${fail ? ` · ${fail} failed` : ''}`, fail ? 'warning' : 'success');
+      else showToast('Could not fetch prices — check tickers / connection', 'error');
+    }
   } catch (e) {
-    showToast('Price update failed', 'error');
+    if (!silent) showToast('Price update failed', 'error');
   } finally { _pricesBusy = false; }
+}
+// Auto-refresh when opening the Wealth tab: at most once every 6h, only if enabled, there are
+// tickered holdings, and no missing stock key (auto never prompts). Failures are silent.
+function maybeAutoRefreshPrices() {
+  if (S.settings.autoRefreshPrices === false) return;
+  if (!hasLiveHoldings()) return;
+  const last = S.settings.lastPriceRefresh || 0;
+  if (Date.now() - last < 6 * 3600 * 1000) return;
+  const needStock = S.accounts.some(a => a.type === 'investment' && (a.holdings || []).some(h => h.assetType === 'stock' && h.ticker));
+  if (needStock && !S.settings.stockApiKey) return; // don't prompt on auto
+  refreshHoldingPrices(null, true);
+}
+function toggleAutoRefresh() {
+  S.settings.autoRefreshPrices = S.settings.autoRefreshPrices === false ? true : false;
+  saveState(); renderCurrentTab();
+  showToast(S.settings.autoRefreshPrices === false ? 'Auto-refresh off' : 'Auto-refresh on', 'success');
 }
 function openStockKeySheet(accId) {
   openSheet2('stock-key', `
