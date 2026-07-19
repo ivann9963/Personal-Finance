@@ -239,7 +239,7 @@ function openHoldingSheet(accId, holdingId) {
   const at = h?.assetType || '';
   const atOpts = [['','Manual price'],['stock','Stock / ETF'],['crypto','Crypto']]
     .map(([v,l])=>`<option value="${v}"${at===v?' selected':''}>${l}</option>`).join('');
-  _holdCur = acc.currency; _holdResults = [];
+  _holdCur = acc.currency; _holdResults = []; _holdMode = h ? 'shares' : 'amount';
   openSheet2('holding',`
     <div class="sheet-handle"></div>
     <div class="sheet-title">${h?'Edit Holding':'Add Holding'}</div>
@@ -252,11 +252,24 @@ function openHoldingSheet(accId, holdingId) {
       <div class="hold-or">or enter it manually</div>` : ''}
       <div class="form-field"><label class="form-label">Name</label>
         <input id="hold-name" class="form-input" type="text" placeholder="e.g. Vanguard All-World, Bitcoin" value="${escHtml(h?.name||'')}"></div>
-      <div class="form-row">
-        <div class="form-field"><label class="form-label">Quantity</label>
-          <input id="hold-qty" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="e.g. 12.5" value="${h?h.qty:''}"></div>
-        <div class="form-field"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
-          <input id="hold-price" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
+      <div class="form-field">
+        <div class="hold-howmuch-head">
+          <label class="form-label" style="margin:0">Investment</label>
+          <div class="mini-seg">
+            <button type="button" class="mini-seg-btn${_holdMode==='amount'?' on':''}" onclick="setHoldMode('amount')">Amount</button>
+            <button type="button" class="mini-seg-btn${_holdMode==='shares'?' on':''}" onclick="setHoldMode('shares')">Shares</button>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:6px">
+          <div class="form-field" style="margin:0">
+            <span id="hold-howmuch-lbl" class="form-label">${_holdMode==='amount'?('Amount ('+escHtml(acc.currency)+')'):'Quantity'}</span>
+            <input id="hold-amount" class="form-input mono" type="text" inputmode="decimal" placeholder="e.g. 5000" style="display:${_holdMode==='amount'?'block':'none'}">
+            <input id="hold-qty" class="form-input mono" type="text" inputmode="decimal" placeholder="e.g. 12.5" value="${h?h.qty:''}" style="display:${_holdMode==='shares'?'block':'none'}">
+          </div>
+          <div class="form-field" style="margin:0"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
+            <input id="hold-price" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
+        </div>
+        <div id="hold-amount-note" style="font-size:11px;color:var(--text-tertiary);margin-top:5px;display:${_holdMode==='amount'?'block':'none'}">Units are worked out from the price — value then tracks the market.</div>
       </div>
       <div class="form-field"><label class="form-label">Live price (optional)</label>
         <div class="form-row" style="margin:0">
@@ -274,7 +287,19 @@ function openHoldingSheet(accId, holdingId) {
   if (!h) setTimeout(() => document.getElementById('hold-search')?.focus(), 350);
 }
 // --- Live symbol search inside the holding editor ---
-let _holdResults = [], _holdCur = 'EUR', _holdSearchTimer = null, _holdSearchSeq = 0;
+let _holdResults = [], _holdCur = 'EUR', _holdSearchTimer = null, _holdSearchSeq = 0, _holdMode = 'amount';
+// Toggle between entering an invested amount (units derived from price) and entering share count.
+function setHoldMode(m) {
+  _holdMode = m;
+  document.querySelectorAll('.mini-seg-btn').forEach(b => b.classList.toggle('on', b.textContent.trim().toLowerCase() === (m === 'amount' ? 'amount' : 'shares')));
+  const amtEl = document.getElementById('hold-amount'), qtyEl = document.getElementById('hold-qty');
+  const lbl = document.getElementById('hold-howmuch-lbl'), note = document.getElementById('hold-amount-note');
+  if (amtEl) amtEl.style.display = m === 'amount' ? 'block' : 'none';
+  if (qtyEl) qtyEl.style.display = m === 'shares' ? 'block' : 'none';
+  if (note) note.style.display = m === 'amount' ? 'block' : 'none';
+  if (lbl) lbl.textContent = m === 'amount' ? `Amount (${_holdCur})` : 'Quantity';
+  (m === 'amount' ? amtEl : qtyEl)?.focus();
+}
 function onHoldSearch(v) {
   clearTimeout(_holdSearchTimer);
   const box = document.getElementById('hold-search-results');
@@ -297,8 +322,14 @@ function renderHoldResults(q) {
       <span class="sym-name">${escHtml(r.name)}</span>
       <span class="sym-type ${r.assetType}">${r.assetType === 'crypto' ? 'Crypto' : 'Stock'}</span>
     </button>`).join('');
+  const onlyCrypto = _holdResults.every(r => r.assetType === 'crypto');
   if (!_holdResults.length) html = `<div class="sym-hint">No matches for “${escHtml(q)}”</div>`;
-  if (!S.settings.stockApiKey) html += `<button type="button" class="sym-keyhint" onclick="openStockKeySheet()">+ Add a free Finnhub key to search stocks &amp; ETFs</button>`;
+  if (!S.settings.stockApiKey && onlyCrypto) {
+    html += `<button type="button" class="sym-enable" onclick="openStockKeySheet()">
+      <span class="sym-enable-t">🔑 Turn on stocks &amp; ETFs</span>
+      <span class="sym-enable-s">One-time free setup — then search &amp; live updates work on their own</span>
+    </button>`;
+  }
   box.innerHTML = html;
 }
 async function selectHoldResult(i) {
@@ -319,8 +350,17 @@ async function selectHoldResult(i) {
 function saveHolding(accId, holdingId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
   const name = document.getElementById('hold-name').value.trim();
-  const qty = parseAmount(document.getElementById('hold-qty').value);
   const price = parseAmount(document.getElementById('hold-price').value);
+  // "Amount" mode: derive units from the money invested ÷ price. "Shares" mode: units entered directly.
+  let qty;
+  if (_holdMode === 'amount') {
+    const amt = parseAmount(document.getElementById('hold-amount')?.value);
+    if (isNaN(amt) || amt <= 0) { showToast('Enter the amount invested', 'error'); return; }
+    if (isNaN(price) || price <= 0) { showToast('Need a price to work out units', 'error'); return; }
+    qty = amt / price;
+  } else {
+    qty = parseAmount(document.getElementById('hold-qty').value);
+  }
   const avgStr = document.getElementById('hold-avgcost').value;
   const avgCost = avgStr!=='' && !isNaN(parseAmount(avgStr)) ? Math.round(parseAmount(avgStr)*100) : null;
   const assetType = document.getElementById('hold-assettype')?.value || undefined;

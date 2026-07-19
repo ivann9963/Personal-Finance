@@ -236,8 +236,7 @@ function renderWealth() {
       </div>
       <div id="wealth-content"></div>
     </div>`;
-  renderWealthContent();
-  maybeAutoRefreshPrices();
+  renderWealthContent(); // triggers throttled auto-refresh itself
 }
 function setWealthView(v) {
   _wealthView = v;
@@ -250,6 +249,7 @@ function renderWealthContent() {
   const el = document.getElementById('wealth-content'); if (!el) return;
   if (_wealthView === 'portfolio') { el.innerHTML = portfolioHTML(); requestAnimationFrame(drawPortfolio); }
   else { el.innerHTML = projectionHTML(); requestAnimationFrame(drawProjection); }
+  maybeAutoRefreshPrices(); // auto-update quotes on view open (throttled), no button needed
 }
 // Actual net-worth trend card (past) — sits above the projection (future).
 function nwHistoryCardHTML() {
@@ -425,9 +425,9 @@ function portfolioHTML() {
     </div>
     <div class="port-gainpct" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${inv.pct.toFixed(1)}% all-time</div>
     ${hasLiveHoldings() ? `<div class="price-refresh-row">
-      <span class="price-ago">${S.settings.lastPriceRefresh ? 'Prices ' + priceAgo(S.settings.lastPriceRefresh) : 'Tap to fetch live prices'}</span>
-      <button class="wealth-toggle" onclick="refreshHoldingPrices()">↻ Refresh</button>
-      <button class="price-auto${S.settings.autoRefreshPrices !== false ? ' on' : ''}" onclick="toggleAutoRefresh()" title="Auto-refresh when you open Wealth (max once / 6h)">Auto</button>
+      <span class="price-ago">${S.settings.autoRefreshPrices === false ? 'Auto-update off' : '⟳ Auto-updating'}${S.settings.lastPriceRefresh ? ' · ' + priceAgo(S.settings.lastPriceRefresh) : ''}</span>
+      <button class="price-refresh-now" onclick="refreshHoldingPrices()" title="Refresh now">↻</button>
+      <button class="price-auto${S.settings.autoRefreshPrices !== false ? ' on' : ''}" onclick="toggleAutoRefresh()" title="Toggle automatic updates">${S.settings.autoRefreshPrices === false ? 'Off' : 'Auto'}</button>
     </div>` : ''}
     ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
     <div class="section-label" style="margin-top:10px">Accounts</div>
@@ -485,7 +485,8 @@ async function searchSymbols(query) {
   if (S.settings.stockApiKey) {
     try {
       const r = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${encodeURIComponent(S.settings.stockApiKey)}`);
-      if (r.ok) { const j = await r.json(); (j.result || []).filter(x => x.symbol && !x.symbol.includes('.')).slice(0, 8).forEach(x => out.push({ name: x.description || x.symbol, ticker: x.symbol, assetType: 'stock' })); }
+      // Keep international listings (e.g. European ETFs like VWCE.DE) — don't strip dotted symbols.
+      if (r.ok) { const j = await r.json(); (j.result || []).slice(0, 10).forEach(x => out.push({ name: x.description || x.symbol, ticker: x.symbol, assetType: 'stock' })); }
     } catch (e) {}
   }
   return out;
@@ -552,7 +553,7 @@ function maybeAutoRefreshPrices() {
   if (S.settings.autoRefreshPrices === false) return;
   if (!hasLiveHoldings()) return;
   const last = S.settings.lastPriceRefresh || 0;
-  if (Date.now() - last < 6 * 3600 * 1000) return;
+  if (Date.now() - last < 10 * 60 * 1000) return; // refresh at most once every 10 min on tab open
   const needStock = S.accounts.some(a => a.type === 'investment' && (a.holdings || []).some(h => h.assetType === 'stock' && h.ticker));
   if (needStock && !S.settings.stockApiKey) return; // don't prompt on auto
   refreshHoldingPrices(null, true);
