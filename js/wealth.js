@@ -121,10 +121,77 @@ let _wealthReal = false; // show the projection in today's (inflation-adjusted) 
 function wealthPlan() {
   const p = S.settings.wealthPlan || {};
   return {
-    monthly: p.monthly != null ? p.monthly : Math.max(0, avgMonthlySavings()),
+    // Default the monthly contribution to what you actually auto-invest, else your avg savings.
+    monthly: p.monthly != null ? p.monthly : Math.max(0, monthlyInvestmentContribution() || avgMonthlySavings()),
     rate: p.rate != null ? p.rate : 6,
     years: p.years || 10,
   };
+}
+// Active recurring-investment schedules (contributions into investment accounts).
+function investmentSchedules() { return S.recurringSchedules.filter(s => s.investment); }
+// Their combined cost per month in the default currency (cents).
+function monthlyInvestmentContribution() {
+  return S.recurringSchedules.filter(s => s.active && s.investment).reduce((sum, s) => {
+    const c = defaultConvert(s.amount, s.currency);
+    return sum + monthlyEquivalent(c.ok ? c.amount : s.amount, s.frequency);
+  }, 0);
+}
+// Set up an automated recurring investment: money moves from a cash account into an investment
+// account each period, growing its value and cost basis (handled by generateRecurring).
+function openInvestmentContribution() {
+  const dc = S.settings.defaultCurrency;
+  const invAccts = S.accounts.filter(a => a.type === 'investment');
+  const cashAccts = S.accounts.filter(a => a.type !== 'investment');
+  const intoOpts = invAccts.map(a => `<option value="${a.id}">${escHtml(a.name)}</option>`).join('') + `<option value="__new__">+ New investment account…</option>`;
+  const fromOpts = cashAccts.length ? cashAccts.map(a => `<option value="${a.id}">${escHtml(a.name)}</option>`).join('') : `<option value="">(add a cash account first)</option>`;
+  openSheet2('inv-contrib', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Recurring investment</div>
+    <div class="sheet-body">
+      <div class="form-field"><label class="form-label">Into</label>
+        <select id="ic-into" class="form-input" onchange="document.getElementById('ic-newwrap').style.display=this.value==='__new__'?'block':'none'">${intoOpts}</select></div>
+      <div id="ic-newwrap" class="form-field" style="display:${invAccts.length ? 'none' : 'block'}"><label class="form-label">New account name</label>
+        <input id="ic-newname" class="form-input" type="text" placeholder="e.g. Index Funds"></div>
+      <div class="form-field"><label class="form-label">From</label>
+        <select id="ic-from" class="form-input">${fromOpts}</select></div>
+      <div class="form-row">
+        <div class="form-field"><label class="form-label">Amount (${getCurInfo(dc).symbol})</label>
+          <input id="ic-amt" class="form-input mono" type="text" inputmode="decimal" placeholder="0.00" style="font-size:18px"></div>
+        <div class="form-field"><label class="form-label">Every</label>
+          <select id="ic-freq" class="form-input"><option value="weekly">Week</option><option value="biweekly">2 weeks</option><option value="monthly" selected>Month</option><option value="yearly">Year</option></select></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-tertiary);line-height:1.45;margin-bottom:12px">Each period this moves money from your cash account into the investment and raises its cost basis. Update the market value anytime to see gains.</div>
+      <button class="btn-primary" onclick="saveInvestmentContribution()">Start investing</button>
+    </div>`);
+}
+function saveInvestmentContribution() {
+  const dc = S.settings.defaultCurrency;
+  const into = document.getElementById('ic-into')?.value;
+  let acc;
+  if (into === '__new__') {
+    const name = (document.getElementById('ic-newname')?.value || '').trim();
+    if (!name) { showToast('Name the account', 'error'); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    acc = { id: gid(), name, type: 'investment', balance: 0, currency: dc, convertedBalance: 0, costBasis: 0, valueHistory: [{ date: today, value: 0 }] };
+    S.accounts.push(acc);
+  } else {
+    acc = S.accounts.find(a => a.id === into);
+  }
+  const from = document.getElementById('ic-from')?.value;
+  const amt = parseAmount(document.getElementById('ic-amt')?.value);
+  const freq = document.getElementById('ic-freq')?.value || 'monthly';
+  if (!acc) { showToast('Pick an account', 'error'); return; }
+  if (!from) { showToast('Choose where the money comes from', 'error'); return; }
+  if (isNaN(amt) || amt <= 0) { showToast('Enter a valid amount', 'error'); return; }
+  const cents = Math.round(amt * 100);
+  S.recurringSchedules.push({
+    id: gid(), type: 'transfer', amount: cents, currency: dc, convertedAmount: cents, exchangeRate: 1,
+    category: 'savings', merchant: `Investment → ${acc.name}`, accountId: from, toAccountId: acc.id,
+    frequency: freq, startDate: new Date().toISOString().slice(0, 10), active: true, investment: true, note: 'Recurring investment'
+  });
+  generateRecurring();
+  saveState(); closeTopSheet2(); renderCurrentTab();
+  showToast(`Investing ${formatCurrency(cents, dc)} / ${freq.replace('ly','')} → ${acc.name}`, 'success');
 }
 // Renders into the dedicated Wealth tab (was previously a sheet off the dashboard teaser).
 function renderWealth() {
@@ -265,11 +332,26 @@ function portfolioHTML() {
     return `<div class="empty-state" style="padding:28px 16px">
       <div style="font-size:40px;margin-bottom:12px">📈</div>
       <div class="empty-state-title">No investments tracked yet</div>
-      <div class="empty-state-desc">Mark an account as “Investment” (or add one) to track its value, gains and allocation here — it also feeds your projection.</div>
-      <button class="empty-state-btn" onclick="openAddAccountSheet({type:'investment'})">Add investment account</button>
+      <div class="empty-state-desc">Track an investment account's value, gains and allocation here — or automate a recurring contribution. It also feeds your projection.</div>
+      <button class="empty-state-btn" onclick="openInvestmentContribution()">Set up recurring investment</button>
+      <div style="height:10px"></div>
+      <button class="btn-secondary" onclick="openAddAccountSheet({type:'investment'})">Add investment account</button>
     </div>`;
   }
   const invAccts = S.accounts.filter(a => a.type === 'investment');
+  // Recurring-investment schedules block.
+  const schs = investmentSchedules();
+  const recurHTML = `
+    <div class="section-label" style="margin-top:16px">Recurring investments</div>
+    ${schs.length ? schs.map(s => {
+      const target = S.accounts.find(a => a.id === s.toAccountId);
+      return `<div class="port-row" onclick="openEditRecurringSheet('${s.id}')">
+        <div class="port-dot" style="background:${s.active ? 'var(--green)' : 'var(--text-tertiary)'}"></div>
+        <div style="flex:1;min-width:0"><div class="port-name">→ ${escHtml(target ? target.name : 'Investment')}</div><div class="port-gain" style="color:var(--text-tertiary)">${s.frequency}${s.active ? '' : ' · paused'}</div></div>
+        <div class="port-val">${formatCurrency(s.amount, s.currency)}</div>
+      </div>`;
+    }).join('') : `<div style="font-size:12.5px;color:var(--text-secondary);padding:2px 4px 8px">Automate a contribution so investing happens on its own.</div>`}
+    <button class="add-acc-btn" style="margin:8px 0 0" onclick="openInvestmentContribution()">+ ${schs.length ? 'Add another' : 'Automate an investment'}</button>`;
   const rows = invAccts.map(a => {
     const cv = defaultConvert(a.balance, a.currency); const val = cv.ok ? cv.amount : a.balance;
     const g = investmentGain(a);
@@ -289,6 +371,7 @@ function portfolioHTML() {
     ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
     <div class="section-label" style="margin-top:10px">Accounts</div>
     ${rows}
+    ${recurHTML}
     <div style="font-size:11.5px;color:var(--text-tertiary);line-height:1.5;margin-top:14px">Gains compare each account's current value to what you put in (its cost basis). Update values or individual holdings from the account screen.</div>`;
 }
 function drawPortfolio() {

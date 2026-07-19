@@ -24,7 +24,7 @@ function generateRecurring() {
       const key = sch.id + '_' + cur;
       if (!existingKeys.has(key)) {
         const dc = defaultConvert(sch.amount, sch.currency);
-        S.transactions.push({
+        const newTx = {
           id: gid(), type: sch.type,
           originalAmount: sch.amount, originalCurrency: sch.currency,
           convertedAmount: dc.ok ? dc.amount : sch.amount,
@@ -32,8 +32,15 @@ function generateRecurring() {
           category: sch.category, merchant: sch.merchant,
           accountId: sch.accountId, date: cur,
           note: sch.note || '', recurringId: sch.id, isRecurring: true,
-          savingsVault: sch.savingsVault || undefined, savingsFlow: sch.savingsVault ? 'in' : undefined
-        });
+          savingsVault: sch.savingsVault || undefined, savingsFlow: sch.savingsVault ? 'in' : undefined,
+          ...(sch.toAccountId && { toAccountId: sch.toAccountId })
+        };
+        S.transactions.push(newTx);
+        // A recurring transfer into a real account (e.g. an automated investment contribution) must
+        // actually move the money: reduce the source, grow the destination + its cost basis.
+        if (newTx.type === 'transfer' && newTx.toAccountId && typeof applyTransferBalances === 'function') {
+          applyTransferBalances(newTx, false);
+        }
         existingKeys.add(key);
       }
       cur = getNextOccurrence(cur, sch.frequency);
