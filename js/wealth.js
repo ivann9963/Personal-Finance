@@ -9,6 +9,37 @@ function netWorthNow() {
     return sum + (c.ok ? c.amount : 0);
   }, 0);
 }
+// Record today's net worth into a rolling history (deduped per day) so the trend builds over time.
+function recordNetWorthSnapshot() {
+  if (!S.accounts || !S.accounts.length) return;
+  S.netWorthHistory = S.netWorthHistory || [];
+  const today = new Date().toISOString().slice(0, 10);
+  const v = netWorthNow();
+  const last = S.netWorthHistory[S.netWorthHistory.length - 1];
+  if (last && last.date === today) last.value = v;
+  else S.netWorthHistory.push({ date: today, value: v });
+  if (S.netWorthHistory.length > 800) S.netWorthHistory = S.netWorthHistory.slice(-800);
+}
+// A monthly net-worth series for the last `months`. Uses recorded snapshots where they exist and,
+// for months before the app started tracking, estimates backward from income/spending flows
+// (transfers net out; investment market moves aren't captured — hence "estimated").
+function netWorthSeries(months = 12) {
+  const flowIn = key => S.transactions.filter(t => t.date.startsWith(key))
+    .reduce((s, t) => t.type === 'income' ? s + t.convertedAmount : t.type === 'expense' ? s - t.convertedAmount : s, 0);
+  const snaps = {};
+  (S.netWorthHistory || []).forEach(p => { snaps[p.date.slice(0, 7)] = p.value; }); // last snapshot wins per month
+  const now = new Date();
+  let running = netWorthNow();
+  const out = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const val = snaps[key] != null ? snaps[key] : running;
+    out.unshift({ month: key, value: val });
+    running = val - flowIn(key); // → net worth at the end of the previous month
+  }
+  return out;
+}
 
 // Compound a starting amount with monthly contributions at an annual return.
 // Returns [start, m1, m2, …] — months+1 points. Contributions are added at month end.
@@ -220,12 +251,35 @@ function renderWealthContent() {
   if (_wealthView === 'portfolio') { el.innerHTML = portfolioHTML(); requestAnimationFrame(drawPortfolio); }
   else { el.innerHTML = projectionHTML(); requestAnimationFrame(drawProjection); }
 }
+// Actual net-worth trend card (past) — sits above the projection (future).
+function nwHistoryCardHTML() {
+  const series = netWorthSeries(12);
+  if (series.length < 2) return '';
+  const dc = S.settings.defaultCurrency;
+  const first = series[0].value, last = series[series.length - 1].value;
+  const chg = last - first, pct = first ? (chg / Math.abs(first) * 100) : 0;
+  return `<div style="background:var(--bg-elevated);border-radius:var(--radius);padding:12px 12px 6px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:0 2px 4px">
+      <span class="section-label" style="margin:0">Net worth · last 12 mo</span>
+      <span style="font-size:12.5px;font-weight:600;color:${chg >= 0 ? 'var(--green)' : 'var(--red)'}">${chg >= 0 ? '▲' : '▼'} ${formatCurrency(Math.abs(chg), dc, true)} (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%)</span>
+    </div>
+    <div style="height:120px"><canvas id="nw-history-chart"></canvas></div>
+    <div style="font-size:10.5px;color:var(--text-tertiary);padding:2px 2px 0">Estimated from your income &amp; spending history; refines as the app records daily snapshots.</div>
+  </div>`;
+}
+function drawNetWorthHistory() {
+  const series = netWorthSeries(12);
+  if (series.length < 2 || !document.getElementById('nw-history-chart')) return;
+  const labels = series.map(p => { const [y, m] = p.month.split('-'); return new Date(+y, +m - 1, 1).toLocaleDateString(undefined, { month: 'short' }); });
+  mkLine('nw-history-chart', labels, [{ label: 'Net worth', data: series.map(p => p.value), borderColor: '#3FB950', backgroundColor: 'rgba(63,185,80,.12)', fill: true, pointRadius: 0, tension: .3, borderWidth: 2 }]);
+}
 function projectionHTML() {
   const plan = wealthPlan();
   const dc = S.settings.defaultCurrency;
   const horizonBtns = WEALTH_HORIZONS.map(y =>
     `<button class="seg-btn${plan.years === y ? ' active' : ''}" data-years="${y}" onclick="setWealthYears(${y})">${y}y</button>`).join('');
   return `
+    ${nwHistoryCardHTML()}
     <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">
       From your net worth of <strong>${formatCurrency(netWorthNow(), dc)}</strong>, here's where steady investing could take you. The shaded band is the range if returns run lower or higher than expected.
     </div>
@@ -296,7 +350,8 @@ function drawProjection() {
     </div>`;
   }).join('');
   document.getElementById('wealth-milestones').innerHTML = rows ? `<div class="section-label">Milestones</div>${rows}` : '';
-  // Chart last — it's decorative, so a chart-lib hiccup never blocks the numbers above.
+  // Charts last — decorative, so a chart-lib hiccup never blocks the numbers above.
+  drawNetWorthHistory();
   const nowYear = new Date().getFullYear();
   mkProjectionChart('wealth-chart', yi.map(i => String(nowYear + i / 12)), { low, high, exp, con });
 }

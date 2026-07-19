@@ -39,6 +39,7 @@ function init() {
     showOnboarding();
   } else {
     generateRecurring();
+    if (typeof recordNetWorthSnapshot === 'function') recordNetWorthSnapshot(); // daily net-worth trend point
     saveState();
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('main').classList.remove('hidden');
