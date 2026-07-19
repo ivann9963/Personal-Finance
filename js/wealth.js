@@ -368,6 +368,7 @@ function portfolioHTML() {
       <div><div class="port-sum-lbl">Gain</div><div class="port-sum-val" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${formatCurrency(inv.gain, dc, true)}</div></div>
     </div>
     <div class="port-gainpct" style="color:${inv.gain >= 0 ? 'var(--green)' : 'var(--red)'}">${inv.gain >= 0 ? '+' : ''}${inv.pct.toFixed(1)}% all-time</div>
+    ${hasLiveHoldings() ? `<div style="display:flex;justify-content:center;margin:6px 0 2px"><button class="wealth-toggle" onclick="refreshHoldingPrices()">↻ Refresh prices</button></div>` : ''}
     ${invAccts.length > 1 ? `<div class="donut-wrap" style="margin:6px auto 2px"><canvas id="port-donut"></canvas><div class="donut-center"><div class="donut-center-lbl">Value</div><div class="donut-center-amt">${formatCurrency(inv.value, dc, true)}</div></div></div>` : ''}
     <div class="section-label" style="margin-top:10px">Accounts</div>
     ${rows}
@@ -383,6 +384,83 @@ function drawPortfolio() {
     const colors = invAccts.map((a, i) => a.color || palette[i % palette.length]);
     mkDonut('port-donut', labels, data, colors);
   }
+}
+
+// ===== Live prices (opt-in, user-initiated) =====
+// Crypto quotes: CoinGecko markets-by-symbol (keyless, CORS-enabled). Stock/ETF quotes: Finnhub
+// (free API key the user pastes, stored on-device). Nothing is fetched unless the user taps Refresh.
+let _pricesBusy = false;
+// Any tickered, auto-priceable holdings across investment accounts?
+function hasLiveHoldings(accId) {
+  const accts = accId ? [S.accounts.find(a => a.id === accId)] : S.accounts.filter(a => a.type === 'investment');
+  return accts.some(a => (a?.holdings || []).some(h => h.ticker && h.assetType));
+}
+async function fetchCryptoPrices(symbols, vs) {
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=${encodeURIComponent(vs.toLowerCase())}&symbols=${encodeURIComponent(symbols.join(',').toLowerCase())}&per_page=250&page=1`;
+  const res = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!res.ok) throw new Error('CoinGecko ' + res.status);
+  const arr = await res.json();
+  const map = {};
+  (arr || []).forEach(c => { if (c.symbol != null && c.current_price != null) map[String(c.symbol).toUpperCase()] = c.current_price; });
+  return map;
+}
+async function fetchStockQuote(symbol, key) {
+  const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(key)}`);
+  if (res.status === 401 || res.status === 403) throw new Error('Bad API key');
+  if (!res.ok) throw new Error('Finnhub ' + res.status);
+  const j = await res.json();
+  if (j.c == null || j.c === 0) throw new Error('No quote for ' + symbol);
+  return j.c; // current price, assumed in the account's currency
+}
+async function refreshHoldingPrices(accId) {
+  if (_pricesBusy) return;
+  const accts = accId ? [S.accounts.find(a => a.id === accId)] : S.accounts.filter(a => a.type === 'investment');
+  const items = [];
+  accts.forEach(a => (a?.holdings || []).forEach(h => { if (h.ticker && h.assetType) items.push({ acc: a, h }); }));
+  if (!items.length) { showToast('Add a ticker + type to a holding first', 'info'); return; }
+  const needStock = items.some(t => t.h.assetType === 'stock');
+  if (needStock && !S.settings.stockApiKey) { openStockKeySheet(accId); return; }
+  _pricesBusy = true; showToast('Updating prices…', 'info');
+  let ok = 0, fail = 0;
+  try {
+    const cryptoByCur = {};
+    items.filter(t => t.h.assetType === 'crypto').forEach(t => { (cryptoByCur[t.acc.currency] = cryptoByCur[t.acc.currency] || []).push(t); });
+    for (const cur of Object.keys(cryptoByCur)) {
+      const group = cryptoByCur[cur];
+      try {
+        const map = await fetchCryptoPrices([...new Set(group.map(t => t.h.ticker))], cur);
+        group.forEach(t => { const p = map[t.h.ticker.toUpperCase()]; if (p != null) { t.h.price = Math.round(p * 100); ok++; } else fail++; });
+      } catch (e) { fail += group.length; }
+    }
+    for (const t of items.filter(t => t.h.assetType === 'stock')) {
+      try { const p = await fetchStockQuote(t.h.ticker, S.settings.stockApiKey); t.h.price = Math.round(p * 100); ok++; }
+      catch (e) { fail++; if (String(e.message).includes('API key')) { showToast('Stock API key rejected', 'error'); break; } }
+    }
+    [...new Set(items.map(t => t.acc))].forEach(a => syncHoldingsValue(a));
+    saveState(); renderCurrentTab();
+    if (ok) showToast(`Updated ${ok} price${ok !== 1 ? 's' : ''}${fail ? ` · ${fail} failed` : ''}`, fail ? 'warning' : 'success');
+    else showToast('Could not fetch prices — check tickers / connection', 'error');
+  } catch (e) {
+    showToast('Price update failed', 'error');
+  } finally { _pricesBusy = false; }
+}
+function openStockKeySheet(accId) {
+  openSheet2('stock-key', `
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Stock price API key</div>
+    <div class="sheet-body">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">Stock &amp; ETF quotes come from <strong>Finnhub</strong>. Create a free key at <strong>finnhub.io</strong> (a minute, no card), then paste it here. It's stored only on this device and sent only to Finnhub when you refresh.</div>
+      <div class="form-field"><label class="form-label">Finnhub API key</label>
+        <input id="stock-key-input" class="form-input" type="text" placeholder="paste your key" autocomplete="off" value="${escHtml(S.settings.stockApiKey || '')}"></div>
+      <button class="btn-primary" onclick="saveStockKey('${accId || ''}')">Save &amp; refresh</button>
+      ${S.settings.stockApiKey ? `<button class="btn-secondary" style="width:100%;margin-top:10px" onclick="S.settings.stockApiKey='';saveState();closeTopSheet2();showToast('Key removed','success')">Remove key</button>` : ''}
+    </div>`);
+}
+function saveStockKey(accId) {
+  const k = (document.getElementById('stock-key-input')?.value || '').trim();
+  if (!k) { showToast('Paste a key', 'error'); return; }
+  S.settings.stockApiKey = k; saveState(); closeTopSheet2();
+  refreshHoldingPrices(accId || null);
 }
 
 // Compact dashboard strip: one number that makes the future concrete, tap for the full sheet.

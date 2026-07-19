@@ -224,8 +224,11 @@ function holdingsListHTML(acc) {
     </div>`;
   }).join('');
   return `<div style="margin-bottom:16px">
-    <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Holdings</div>
-    ${rows||`<div style="font-size:13px;color:var(--text-secondary);padding:8px 0">Track individual positions (ETFs, stocks, crypto) — the account value follows their prices.</div>`}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div style="font-size:13px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.5px">Holdings</div>
+      ${hasLiveHoldings(acc.id)?`<button onclick="refreshHoldingPrices('${acc.id}')" style="font-size:12px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:4px">↻ Refresh prices</button>`:''}
+    </div>
+    ${rows||`<div style="font-size:13px;color:var(--text-secondary);padding:8px 0">Track individual positions (ETFs, stocks, crypto) — the account value follows their prices. Add a ticker to pull live prices.</div>`}
     <button class="btn-secondary" style="width:100%;margin-top:10px;padding:10px" onclick="openHoldingSheet('${acc.id}')">＋ Add holding</button>
   </div>`;
 }
@@ -233,17 +236,27 @@ function holdingsListHTML(acc) {
 function openHoldingSheet(accId, holdingId) {
   const acc = S.accounts.find(a=>a.id===accId); if (!acc) return;
   const h = (acc.holdings||[]).find(x=>x.id===holdingId);
+  const at = h?.assetType || '';
+  const atOpts = [['','Manual price'],['stock','Stock / ETF'],['crypto','Crypto']]
+    .map(([v,l])=>`<option value="${v}"${at===v?' selected':''}>${l}</option>`).join('');
   openSheet2('holding',`
     <div class="sheet-handle"></div>
     <div class="sheet-title">${h?'Edit Holding':'Add Holding'}</div>
     <div class="sheet-body">
-      <div class="form-field"><label class="form-label">Name / Ticker</label>
-        <input id="hold-name" class="form-input" type="text" placeholder="e.g. VWCE, Bitcoin" value="${escHtml(h?.name||'')}"></div>
+      <div class="form-field"><label class="form-label">Name</label>
+        <input id="hold-name" class="form-input" type="text" placeholder="e.g. Vanguard All-World, Bitcoin" value="${escHtml(h?.name||'')}"></div>
       <div class="form-row">
         <div class="form-field"><label class="form-label">Quantity</label>
           <input id="hold-qty" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="e.g. 12.5" value="${h?h.qty:''}"></div>
         <div class="form-field"><label class="form-label">Price / unit (${escHtml(acc.currency)})</label>
           <input id="hold-price" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="0.00" value="${h?(h.price/100).toFixed(2):''}"></div>
+      </div>
+      <div class="form-field"><label class="form-label">Live price (optional)</label>
+        <div class="form-row" style="margin:0">
+          <select id="hold-assettype" class="form-input">${atOpts}</select>
+          <input id="hold-ticker" class="form-input" type="text" placeholder="Ticker — AAPL, BTC" value="${escHtml(h?.ticker||'')}">
+        </div>
+        <div style="font-size:11.5px;color:var(--text-tertiary);margin-top:6px;line-height:1.4">Set a type + ticker to pull the live price with “Refresh prices”. Crypto is keyless; stocks need a free Finnhub key.</div>
       </div>
       <div class="form-field"><label class="form-label">Avg buy price / unit (optional — enables gain per holding)</label>
         <input id="hold-avgcost" class="form-input mono" type="text" inputmode="decimal" step="any" placeholder="what you paid on average" value="${h&&h.avgCost!=null?(h.avgCost/100).toFixed(2):''}"></div>
@@ -259,12 +272,14 @@ function saveHolding(accId, holdingId) {
   const price = parseAmount(document.getElementById('hold-price').value);
   const avgStr = document.getElementById('hold-avgcost').value;
   const avgCost = avgStr!=='' && !isNaN(parseAmount(avgStr)) ? Math.round(parseAmount(avgStr)*100) : null;
+  const assetType = document.getElementById('hold-assettype')?.value || undefined;
+  const ticker = (document.getElementById('hold-ticker')?.value || '').trim().toUpperCase() || undefined;
   if (!name) { showToast('Enter a name','error'); return; }
   if (isNaN(qty) || qty<=0 || isNaN(price) || price<0) { showToast('Enter quantity and price','error'); return; }
   acc.holdings = acc.holdings||[];
   const h = acc.holdings.find(x=>x.id===holdingId);
-  if (h) Object.assign(h, {name, qty, price:Math.round(price*100), avgCost});
-  else acc.holdings.push({id:gid(), name, qty, price:Math.round(price*100), avgCost});
+  if (h) Object.assign(h, {name, qty, price:Math.round(price*100), avgCost, assetType, ticker});
+  else acc.holdings.push({id:gid(), name, qty, price:Math.round(price*100), avgCost, assetType, ticker});
   syncHoldingsValue(acc);
   saveState(); closeTopSheet2(); openAccDetail(accId); renderCurrentTab();
   showToast(`Holding ${h?'updated':'added'}`,'success');
