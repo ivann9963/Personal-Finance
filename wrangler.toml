@@ -1,0 +1,5 @@
+# Cloudflare Worker config for the price proxy (see tools/price-proxy-worker.js).
+# Lets a Git-connected Cloudflare Workers build deploy the proxy with `npx wrangler deploy`.
+name = "price-proxy"
+main = "tools/price-proxy-worker.js"
+compatibility_date = "2024-11-01"
